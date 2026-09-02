@@ -1,0 +1,162 @@
+x-operator: &operator
+  image: lapismd/nostr-auth-pomegranate:${POMEGRANATE_IMAGE_TAG:-ca0e7a9d697a}
+  environment: &operator-environment
+    POMEGRANATE_ROLE: operator
+    POMEGRANATE_LISTEN_PORT: "5041"
+    PORT: "5041"
+    DB_PATH: /var/lib/pomegranate/operator.db
+    GOOGLE_CLIENT_ID: deterministic-test-client
+    GOOGLE_CLIENT_SECRET: deterministic-test-secret
+  expose:
+    - "5041"
+  networks:
+    - pomegranate
+  restart: unless-stopped
+  stop_grace_period: 20s
+  read_only: true
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  deploy:
+    resources:
+      limits:
+        cpus: "0.75"
+        memory: 192M
+        pids: 128
+      reservations:
+        memory: 32M
+  healthcheck:
+    test: ["CMD", "/usr/local/bin/pomegranate-healthcheck"]
+    interval: 10s
+    timeout: 5s
+    start_period: 10s
+    retries: 8
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "5"
+  depends_on:
+    central:
+      condition: service_healthy
+
+services:
+  secret-init:
+    image: lapismd/nostr-auth-test:${POMEGRANATE_TEST_IMAGE_TAG:-deno-2.9.6}
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.test
+    command:
+      - run
+      - --allow-read
+      - --allow-write
+      - scripts/generate-secrets.ts
+      - --central-key=/run/central-secrets/central-key
+      - --test-token=/run/test-auth/token
+      - --email=smoke-test@lapis.invalid
+    volumes:
+      - central-secrets:/run/central-secrets
+      - test-auth:/run/test-auth
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - pomegranate
+
+  central:
+    environment:
+      SERVICE_URL: http://central:5033
+      SECRET_KEY_FILE: /run/central-secrets/central-key
+      GOOGLE_CLIENT_ID: deterministic-test-client
+      GOOGLE_CLIENT_SECRET: deterministic-test-secret
+    ports:
+      - 127.0.0.1:5033:5033
+    volumes:
+      - central-secrets:/run/central-secrets:ro
+    depends_on:
+      secret-init:
+        condition: service_completed_successfully
+
+  operator-1:
+    <<: *operator
+    environment:
+      <<: *operator-environment
+      SERVICE_URL: http://operator-1:5041
+    ports:
+      - 127.0.0.1:5041:5041
+    volumes:
+      - operator-1-data:/var/lib/pomegranate
+
+  operator-2:
+    <<: *operator
+    environment:
+      <<: *operator-environment
+      SERVICE_URL: http://operator-2:5041
+    ports:
+      - 127.0.0.1:5042:5041
+    volumes:
+      - operator-2-data:/var/lib/pomegranate
+
+  operator-3:
+    <<: *operator
+    environment:
+      <<: *operator-environment
+      SERVICE_URL: http://operator-3:5041
+    ports:
+      - 127.0.0.1:5043:5041
+    volumes:
+      - operator-3-data:/var/lib/pomegranate
+
+  test-runner:
+    image: lapismd/nostr-auth-test:${POMEGRANATE_TEST_IMAGE_TAG:-deno-2.9.6}
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.test
+    profiles:
+      - test
+    # Local-only: access to the Docker socket is already host-equivalent.
+    group_add:
+      - "0"
+    command: ["task", "smoke"]
+    environment:
+      POMEGRANATE_CENTRAL_URL: http://central:5033
+      POMEGRANATE_OPERATOR_URLS: http://operator-1:5041,http://operator-2:5041,http://operator-3:5041
+      POMEGRANATE_THRESHOLD: "2"
+      POMEGRANATE_TEST_TOKEN_FILE: /run/test-auth/token
+      COMPOSE_PROJECT_NAME: ${COMPOSE_PROJECT_NAME:-nostr-auth}
+    volumes:
+      - test-auth:/run/test-auth:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - pomegranate
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      central:
+        condition: service_healthy
+      operator-1:
+        condition: service_healthy
+      operator-2:
+        condition: service_healthy
+      operator-3:
+        condition: service_healthy
+
+volumes:
+  central-secrets:
+  test-auth:
+  operator-1-data:
+  operator-2-data:
+  operator-3-data:

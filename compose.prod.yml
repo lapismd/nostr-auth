@@ -1,0 +1,68 @@
+x-production-operator: &production-operator
+  image: lapismd/nostr-auth-pomegranate:${POMEGRANATE_IMAGE_TAG:-ca0e7a9d697a}
+  build:
+    context: .
+    dockerfile: docker/Dockerfile
+    args:
+      POMEGRANATE_REF: ${POMEGRANATE_REF:-ca0e7a9d697a7db0fc918f9b9335bc5b58d2ac3f}
+  expose:
+    - "5041"
+  networks:
+    - pomegranate
+  restart: unless-stopped
+  stop_grace_period: 20s
+  read_only: true
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  deploy:
+    resources:
+      limits:
+        cpus: "1.0"
+        memory: 256M
+        pids: 128
+      reservations:
+        memory: 32M
+  healthcheck:
+    test: ["CMD", "/usr/local/bin/pomegranate-healthcheck"]
+    interval: 15s
+    timeout: 5s
+    start_period: 10s
+    retries: 5
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "5"
+
+services:
+  central:
+    environment:
+      SERVICE_URL: ${CENTRAL_SERVICE_URL:-https://auth.lapis.md}
+      GOOGLE_CLIENT_ID: ${CENTRAL_GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${CENTRAL_GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_CLIENT_SECRET_FILE: ${CENTRAL_GOOGLE_CLIENT_SECRET_FILE:-}
+      SECRET_KEY: ${CENTRAL_SECRET_KEY:-}
+      SECRET_KEY_FILE: ${CENTRAL_SECRET_KEY_FILE:-}
+
+  lapis-operator:
+    <<: *production-operator
+    profiles:
+      - lapis-operator
+    environment:
+      POMEGRANATE_ROLE: operator
+      POMEGRANATE_LISTEN_PORT: "5041"
+      SERVICE_URL: ${OPERATOR_SERVICE_URL:-https://po.lapis.md}
+      PORT: "5041"
+      DB_PATH: /var/lib/pomegranate/operator.db
+      GOOGLE_CLIENT_ID: ${OPERATOR_GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${OPERATOR_GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_CLIENT_SECRET_FILE: ${OPERATOR_GOOGLE_CLIENT_SECRET_FILE:-}
+    volumes:
+      - lapis-operator-data:/var/lib/pomegranate
+
+volumes:
+  lapis-operator-data:

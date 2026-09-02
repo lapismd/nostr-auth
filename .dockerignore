@@ -1,0 +1,11 @@
+.git
+.jj
+.env
+.env.*
+!.env.example
+artifacts
+backups
+*.db
+*.db-shm
+*.db-wal
+

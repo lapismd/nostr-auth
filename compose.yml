@@ -1,0 +1,54 @@
+services:
+  central:
+    image: lapismd/nostr-auth-pomegranate:${POMEGRANATE_IMAGE_TAG:-ca0e7a9d697a}
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        POMEGRANATE_REF: ${POMEGRANATE_REF:-ca0e7a9d697a7db0fc918f9b9335bc5b58d2ac3f}
+    environment:
+      POMEGRANATE_ROLE: central
+      POMEGRANATE_INTERNAL_PORT: "15033"
+      POMEGRANATE_LISTEN_PORT: "5033"
+      DB_PATH: /var/lib/pomegranate/central.db
+    expose:
+      - "5033"
+    volumes:
+      - central-data:/var/lib/pomegranate
+    networks:
+      - pomegranate
+    restart: unless-stopped
+    stop_grace_period: 20s
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 256M
+          pids: 128
+        reservations:
+          memory: 32M
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/pomegranate-healthcheck"]
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
+networks:
+  pomegranate:
+    driver: bridge
+
+volumes:
+  central-data:

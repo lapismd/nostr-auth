@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+.deno/
+.tmp/
+artifacts/
+backups/
+*.db
+*.db.lock
+*.log
+
