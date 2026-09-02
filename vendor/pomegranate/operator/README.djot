@@ -1,0 +1,89 @@
+# Operator
+
+This is the server that holds a shard of someone's key and collaborates with central to produce partial signatures that central then aggregates into a full signature.
+
+Clients talk directly to operators and send their shards to them.
+
+At registration time the client doesn't have to perform OAuth, the operator trusts the email address sent by the client along with a confirmation from the central (with which the client does perform OAuth).
+
+Later, though, clients can perform OAuth with operators directly in order to request their shards back or tell the operators to erase them.
+
+## Build
+
+Requires [templ](https://github.com/a-h/templ) for HTML template code generation.
+
+```
+templ generate
+go build -tags=libsecp256k1 -o ./operator
+```
+
+## Run
+
+Execute `./operator` with the required environment variables. Use nginx, caddy or any other reverse-proxy normally.
+
+TLS is needed, but try to not use Cloudflare automatic HTTPS as that means Cloudflare can steal the shards of users.
+
+## Environment
+
+| Variable               | Default       | Required                           |
+| ---                    | ---           | ---                                |
+| `PORT`                 | `5041`        |                                    |
+| `SERVICE_URL`          |               | yes (e.g. `https://po.mysite.com`) |
+| `DB_PATH`              | `operator.db` |                                    |
+| `GOOGLE_CLIENT_ID`     |               | yes                                |
+| `GOOGLE_CLIENT_SECRET` |               | yes                                |
+
+Create OAuth 2.0 credentials at [Google Cloud Console](https://console.cloud.google.com/apis/credentials). Set authorized redirect URI to `{SERVICE_URL}/po/callback/google`.
+
+### Static binary with musl
+
+For fully static deployment (no libc dependency):
+
+```
+templ generate
+CC=musl-gcc go build -ldflags="-s -w -linkmode external -extldflags '-static'" -tags=libsecp256k1 -o ./operator
+```
+
+Requires `musl-gcc` wrapper installed.
+
+### Other OAuth providers
+
+`GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `APPLE_CLIENT_ID` are in the codebase, but haven't been tested. Let's first prove this model works with Google only before introducing more complexity.
+
+## Running as a systemd service
+
+This is an example, adapt as it suits your needs:
+
+1. Create a directory at `/opt/pomegranate`.
+2. Place the binary at `/opt/pomegranate/operator`.
+3. Place the following file at `/etc/systemd/system/pomegranate-operator.service`:
+
+```
+[Unit]
+Description=Pomegranate Operator
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/pomegranate
+ExecStart=/opt/pomegranate/operator
+Environment=SERVICE_URL=https://po.mysite.com GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=...
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Then:
+
+```
+systemctl daemon-reload
+systemctl enable pomegranate-operator
+systemctl start pomegranate-operator
+```
+
+## Docker
+
+It is known that some people run Pomegranate on Docker. I believe it should be easy for Docker fans to generate a Dockerfile, so we won't provide any here.

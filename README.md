@@ -1,8 +1,9 @@
 # nostr-auth
 
 `nostr-auth` is LapisMD's reproducible deployment and TypeScript integration boundary for upstream
-Pomegranate. Pomegranate remains an independently replaceable Go service; this repository does not
-reimplement or vendor its FROST/NIP-46 protocol.
+Pomegranate. Its source is vendored so LapisMD can maintain OAuth-provider integrations while
+keeping Pomegranate an independently replaceable Go service. This repository does not independently
+reimplement its FROST/NIP-46 protocol.
 
 ## Pinned supply chain
 
@@ -18,9 +19,17 @@ reimplement or vendor its FROST/NIP-46 protocol.
 | Test runtime             | `denoland/deno:alpine-2.9.6@sha256:aa665f8777136863b5b8a0445a5cdfccff8103b5f40c9a877de5276b04facb1e` |
 | Docker CLI in test image | `29.5.3-r0` with Compose `5.1.4-r0`                                                                  |
 
-The Docker build accepts only a full lowercase commit SHA and verifies that the fetched checkout
-resolves to it. Upstream Pomegranate is Unlicense-licensed; the deployment wrapper and TypeScript
-integration in this repository are MIT.
+`vendor/pomegranate` is the exact initial source snapshot. The accompanying lock and complete
+SHA-256 manifest bind it to the full upstream commit. Docker performs no Pomegranate source fetch:
+it checks the requested full lowercase SHA against the lock, verifies every vendored file, confirms
+the Go/templ/Promenade pins, runs the Go tests, and builds locally. Upstream Pomegranate is
+Unlicense-licensed; its license is preserved in the vendor tree. The deployment wrapper and
+TypeScript integration are MIT.
+
+The pinned source already includes Google, GitHub, Microsoft, and Apple flows. This deployment
+continues to enable and test Google only. See `vendor/README.md` for the governed patch process when
+adding a provider not present upstream; provider behavior and public client support are implemented
+as a separate, provider-specific slice.
 
 ## Local development
 
@@ -165,5 +174,5 @@ removed when a later pinned upstream revision supplies equivalent behavior.
 ## Scope
 
 This repository does not alter Lapis login screens, migrate current users, deploy to Coolify,
-publish a package, or patch Pomegranate. A later Lapis change can expose “Continue with Google” and
-pass the resulting bunker URI to the existing signer abstraction.
+publish a package, or currently carry a local Pomegranate patch. A later Lapis change can expose
+“Continue with Google” and pass the resulting bunker URI to the existing signer abstraction.

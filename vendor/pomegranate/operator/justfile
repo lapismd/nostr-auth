@@ -1,0 +1,11 @@
+dev port="5041":
+    fd 'go|html|md|templ|base.css' | entr -r bash -c 'just build /tmp/operator{{port}} && DB_PATH="/tmp/operator{{port}}.db" godotenv -f {{port}}.env /tmp/operator{{port}}'
+
+build target="./operator":
+    templ generate
+    CC=musl-gcc go build -ldflags="-s -w -linkmode external -extldflags '-static' -X main.compileTimeTs=$(date '+%s') -s -w" -o {{target}}
+
+deploy target: build
+    ssh root@{{target}} 'systemctl stop pomegranate-operator'
+    scp operator {{target}}:pomegranate-operator/operator
+    ssh root@{{target}} 'systemctl start pomegranate-operator'

@@ -8,6 +8,7 @@ COPY src ./src
 COPY scripts ./scripts
 COPY tests ./tests
 COPY spec ./spec
+COPY vendor ./vendor
 COPY docker/log-filter.awk ./docker/log-filter.awk
 COPY compose.yml compose.dev.yml compose.prod.yml ./
 RUN deno cache --lock=deno.lock src/mod.ts scripts/*.ts tests/*.ts && \

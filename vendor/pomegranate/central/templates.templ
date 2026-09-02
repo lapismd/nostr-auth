@@ -1,0 +1,21 @@
+package main
+
+templ callbackPage(token string) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8"/>
+			<title>Authorizing...</title>
+		</head>
+		<body data-token={ token }>
+			<script>
+				const token = document.body.dataset.token
+				if (token && window.opener) {
+					window.opener.postMessage({ token: token }, '*');
+				} else {
+					document.body.innerText = "Error: No token received.";
+				}
+			</script>
+		</body>
+	</html>
+}

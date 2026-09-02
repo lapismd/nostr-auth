@@ -2,8 +2,9 @@
 
 This specification governs the reproducible Pomegranate deployment and its typed client boundary.
 
-- **NA-ARCH-001:** The repository must build pinned upstream Pomegranate central and operator
-  binaries without vendoring or reimplementing the signing protocol.
+- **NA-ARCH-001:** The repository must build Pomegranate central and operator binaries from an
+  integrity-checked vendor tree based on a pinned upstream commit, without independently
+  reimplementing the signing protocol.
 - **NA-ARCH-002:** Development provides a single-network 2-of-3 topology; production provides
   central, one optional Lapis operator, and configurable external operator URLs.
 - **NA-SEC-001:** Central never receives the complete user private key or a private FROST share.

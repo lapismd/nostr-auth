@@ -1,0 +1,92 @@
+# Pomegranate
+
+_Promenade-like Offering of Multisig Enhanced by Google Resources for Auth such that Nostr Accounts are Treated Easily_
+
+This is what happens when you combine the ideas of both <https://viewsource.win/fiatjaf.com/promenade> and <https://github.com/coracle-social/pomade> and then take those to a new level.
+
+Demo/admin app: <https://pomegranate-admin.netlify.app>
+
+## Setup flow
+
+1. User logs in with Google on the `central` server, gets a signed token
+2. User inputs or generates a new secret key, performs the FROST sharding of that key into multiple pieces and a threshold (e.g., 2-of-3, 3-of-5)
+3. User contacts `central` with a payload containing their chosen operators (together with their public key shard) and the threshold
+4. User contacts each operator and sends their secret key shard, its own email address and the address of `central`
+5. Operators confirm the information with `central` and reply to the user
+6. Once all operators have confirmed, `central` marks that user as operational
+7. User can now create multiple "profiles" on `central`, each is a different reusable NIP-46 "bunker" URI with a unique handler key and optional restrictions (kind filters, author filters, expiration)
+8. Now that bunker can be used in any Nostr client to create signatures on behalf of the user using the normal NIP-46 flow using `central` as the relay
+3. When `central` receives a NIP-46 request (kind 27133), it decrypts it, validates restrictions (allowed kinds, authors, expiration), then forwards to operator servers
+4. Operators create partial signatures and return them to `central`
+5. `central` combines the threshold of signatures and produces the final signed event, which is then returned via the proper NIP-46 response
+
+## Implementation guide
+
+Clients that want to add a "Login with Google" button can do the following:
+
+(everything that would imply binary is encoded as hex.)
+(requests and response bodies are JSON.)
+
+1. Pick a `central` server URL (hardcoding a default is fine, having an advanced menu where users can provide their own is optional).
+2. Open Google login popup using `window.open()` against `<central-url>/login/google`.
+3. `central` popup sends back `{ token: "..." }` with `postMessage()`. That token should be used as `Authorization: Token <token>` in every following call to that `central` server.
+
+```js
+const popup = window.open(`${centralURL}/login/google`, "OAuth", "width=600,height=600")
+
+window.addEventListener("message", function handler(event) {
+  if (event.origin !== centralURL || !event.data?.token) return
+  window.removeEventListener("message", handler)
+  popup?.close()
+
+  const token = event.data.token
+  // use as "Authorization: Token <token>"
+}, { once: true })
+```
+
+4. Extract email from token: the token is a base64-encoded Nostr event of kind `20443`. The `"email"` tag has the email as the value.
+
+```js
+const evt = JSON.parse(atob(token))
+const email = evt.tags.find(tag => tag[0] === "email")?.[1]
+```
+
+5. Check if users have already performed a similar Google login elsewhere: once client has obtained the user email address (from any successful `central` login), it is possible to search for an event kind `16440` using a filter `{"#m": [argon2id(email, "pomegranate", {t: 1, m: 65536, p: 4})]}`. Such event will come with a `"central"` tag, if that points to a different `central` server, display a button telling the user that a setup was found at this other server and do step 3 again.
+6. Once the user is authenticated against the correct `central` server, call `GET <central-url>/account` on it, if the user already has an account there the response will be a JSON object `{"operators": ["<url>", ...], "threshold": <number>, "pubkey": "<nostr-user-pubkey>"}`, otherwise it will be a 404.
+7. If the response exists, jump to step 15; if it is a 404 we have to create an account.
+8. First the client must choose a set of operators (signers) and threshold, this may be done by hardcoding default parameters, optionally allowing the user to pick their own.
+9. The client also needs a random string to act as the session identifier.
+10. The client also needs a Nostr secret key for the user, the user could provide their own but generally the client will create a new random key at this point.
+11. Finally the client has to perform the actual FROST key-sharding algorithm, according to the number of operators (`<n>`) and threshold chosen (`<m>`) (`2-of-3`, `3-of-5` etc). The implementation for this exists in [JavaScript](https://jsr.io/@fiatjaf/promenade-trusted-dealer/doc) in [Golang](https://pkg.go.dev/fiatjaf.com/promenade/frost). This will yield a set of `<n>` "shards" (one for each operator), each with a public part and a secret part. These same libraries also include encoders and decoders that can be used to convert such shards to bytes and hex (they will have to be sent as hex to the servers in the next steps).
+12. Once those parameters are available, call `POST /register` on `central` with the header `X-Pomegranate-Session` set to `session` (the string from step 9) and the request body set to an event of `kind:20445` signed by the user key. The event should contain a tag `["threshold", "<m>"]` and one tag per operator: `["operator", "<operator-url>", "<public-shard-hex>"]`.
+13. Register on each operator: for each selected operator, call `POST <operator-url>/po/register` with the header `X-Pomegranate-Operator-Token: sha256(session + ":" + operatorURL)` and the request body set to an event of kind `20444` signed by the user key. The event should contain a tag `["central", <central-url>]`, a tag `["email", <user-email>]` and `content` set to `<private-shard-hex>`
+14. Once the last call to `/register` on the last operator returns, `GET <central-url>/account` can be called again to check if the account has been created (the operators will talk to `central` in the background).
+15. As soon as the account exists, a call `GET <central-url>/profiles` can be made. It should return an array of `[{"name": "<...>", "handler_pubkey": "<...>"}, ...]`. If a profile named `"default"` doesn't exist, create it with a call `POST <central-url>/profiles` with body `{"name": "default"}` and fetch again.
+16. Build a NIP-46 bunker URL as `bunker://<handler_pubkey>?relay=<encodeURIComponent(replace(central-url, "http", "ws"))>` and use that normally.
+17. Erase the secret key from memory.
+
+## Key recovery
+
+Users can recover their secret keys as long as the operators are responsive, by relying only on their Google accounts:
+
+- Users can visit any operator's `/po/recover/google` endpoint with their Google credentials
+- The operator returns their stored shard
+- With threshold shards from enough operators, the secret key can be reconstructed
+- Once reconstructed, the secret key can be resharded and redistributed to other operators, or used in raw format
+
+## Trust assumptions
+
+The idea here is that it is very hard for a secret key to be compromised. Even if the entire setup is broken the user always has the option to move on to a new setup as long as it retains exclusive control over the key.
+
+There are only two ways the user secret key can be compromised:
+
+- enough (meeting the threshold) operators collude to rebuild the key on their own and use it for their own purposes
+- Google decides to fake its OAuth API to trick the operators to think they are talking to the real user, then steal the shards and rebuild the key
+
+The operator cannot ever access the secret key, nor any of the Nostr clients (except for the client that is creating the key, in the moment it is created, although this can be mitigated in the future using a decentralized key generation process).
+
+### Losing keys
+
+If the user doesn't have an independent key backup and enough operators (such that the threshold can't be met anymore) go unresponsive then the key cannot be recovered and no signatures can be created again.
+
+A mitigation to this would be to have a small relative threshold that is still big enough to be safe (like a 4-of-9?), and also for `central` to monitor the responsiveness of the operators and notify the user if any of them is offline, so the user can perform a recovery-and-reshard process.

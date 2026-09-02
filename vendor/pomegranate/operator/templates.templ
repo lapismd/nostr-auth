@@ -1,0 +1,67 @@
+package main
+
+templ confirmRecoveryPage(email, shard string) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8"/>
+			<title>Confirm Recovery</title>
+		</head>
+		<body>
+			<h1>Confirm Recovery</h1>
+			<p>Are you sure you want to recover your secret shard for accounts { email }?</p>
+			<p>This will share your secret shard with the requesting application.</p>
+			<button id="confirm">Yes, I trust the application that opened this dialog</button>
+			<button onclick="window.close()">Cancel</button>
+			<script>
+				const shard = "{{ shard }}"
+				document.getElementById('confirm').addEventListener('click', function() {
+					window.opener.postMessage(shard, "*")
+					window.close()
+				})
+			</script>
+		</body>
+	</html>
+}
+
+templ confirmErasePage(email string) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8"/>
+			<title>Confirm Erase</title>
+		</head>
+		<body>
+			<h1>Confirm Erase</h1>
+			<p>Are you sure you want to erase your secret shard for account { email }?</p>
+			<p>This action cannot be undone.</p>
+			<button id="confirm">Yes, erase forever</button>
+			<button onclick="window.close()">Cancel</button>
+			<script>
+				document.getElementById('confirm').addEventListener('click', async function() {
+					const response = await fetch('/po/shard', { method: 'DELETE', credentials: 'same-origin' })
+					if (!response.ok) {
+						alert(await response.text())
+						return
+					}
+					window.close()
+				})
+			</script>
+		</body>
+	</html>
+}
+
+templ rootPage(recoverURL string, eraseURL string) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8"/>
+			<title>Pomegranate Operator</title>
+		</head>
+		<body>
+			<h1>Pomegranate Operator</h1>
+			<p><a href={ recoverURL }>Recover with Google</a></p>
+			<p><a href={ eraseURL }>Erase with Google</a></p>
+		</body>
+	</html>
+}

@@ -1,0 +1,7 @@
+{
+  "repository": "https://basspistol.org/npub180cvv07tjdrrgpa0j7j7tmnyl2yr6yr7l8j4s3evf6u64th6gkwsyjh6w6/pomegranate.git",
+  "commit": "ca0e7a9d697a7db0fc918f9b9335bc5b58d2ac3f",
+  "license": "Unlicense",
+  "manifest": "pomegranate.sha256",
+  "localPatches": []
+}

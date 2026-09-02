@@ -6,22 +6,26 @@ ARG RUNTIME_IMAGE=alpine:3.23.3@sha256:25109184c71bdad752c8312a8623239686a9a2071
 FROM ${GO_IMAGE} AS build
 
 ARG POMEGRANATE_REF
-ARG POMEGRANATE_REPOSITORY=https://basspistol.org/npub180cvv07tjdrrgpa0j7j7tmnyl2yr6yr7l8j4s3evf6u64th6gkwsyjh6w6/pomegranate.git
-
-RUN apk add --no-cache git=2.52.0-r0 ca-certificates=20260611-r0
+RUN apk add --no-cache ca-certificates=20260611-r0
 
 WORKDIR /src
+COPY vendor/pomegranate.lock.json /tmp/pomegranate.lock.json
+COPY vendor/pomegranate.sha256 /tmp/pomegranate.sha256
+COPY vendor/pomegranate/ ./
+
 RUN case "${POMEGRANATE_REF}" in \
       *[!0-9a-f]*|'') echo 'POMEGRANATE_REF must be a lowercase 40-character commit SHA' >&2; exit 64 ;; \
     esac && \
     test "${#POMEGRANATE_REF}" -eq 40 && \
-    git init && \
-    git remote add origin "${POMEGRANATE_REPOSITORY}" && \
-    git fetch --depth=1 origin "${POMEGRANATE_REF}" && \
-    git checkout --detach FETCH_HEAD && \
-    test "$(git rev-parse HEAD)" = "${POMEGRANATE_REF}"
+    grep -Fq "\"commit\": \"${POMEGRANATE_REF}\"" /tmp/pomegranate.lock.json && \
+    sha256sum -c /tmp/pomegranate.sha256 && \
+    grep -Fxq 'go 1.26.2' go.mod && \
+    grep -Fq 'fiatjaf.com/promenade v0.4.4-0.20260511003220-ce69ab3c4a4d' go.mod && \
+    grep -Fq 'github.com/a-h/templ v0.3.1020' go.mod
 
 RUN go run github.com/a-h/templ/cmd/templ@v0.3.1020 generate && \
+    test -z "$(find . -name '*.go' -type f -exec gofmt -l {} +)" && \
+    go test ./... && \
     mkdir -p /out && \
     CGO_ENABLED=0 go build -trimpath -ldflags='-s -w -buildid=' \
       -o /out/pomegranate-central ./central && \

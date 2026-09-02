@@ -1,0 +1,11 @@
+.env
+static/bundle.css
+*_templ.go
+node_modules
+events
+tmp
+db
+*.db
+
+# Local Netlify folder
+.netlify

@@ -1,0 +1,13 @@
+export PATH := "./node_modules/.bin:" + env_var('PATH')
+
+dev:
+    fd 'go|html|md|templ|base.css' | entr -r bash -c 'just build && godotenv ./central'
+
+build:
+    templ generate
+    go build -ldflags="-s -w -X main.compileTimeTs=$(date '+%s') -s -w" -o ./central
+
+deploy target: build
+    ssh root@{{target}} 'systemctl stop pomegranate-central'
+    scp central {{target}}:pomegranate-central/central
+    ssh root@{{target}} 'systemctl start pomegranate-central'
