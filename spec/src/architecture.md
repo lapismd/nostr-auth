@@ -21,6 +21,10 @@ acknowledgement and NIP-11 requests have fixed time and response-size bounds and
 redirects. OAuth cookie security follows the configured public callback scheme rather than the
 container's loopback HTTP connection behind the TLS terminator.
 
+The Go toolchain and security-sensitive `golang.org/x` modules are pinned at patched versions in
+the vendored module and build image. Dependency refreshes remain explicit lock-ledger entries and
+must pass a current vulnerability scan in the pinned builder.
+
 Two documented wrappers compensate for properties of the pinned revision: central bind forwarding
 and pre-stdout sensitive-response redaction. Neither changes the HTTP, NIP-46, FROST, persistence,
 or authentication protocol.

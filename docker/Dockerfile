@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
-ARG GO_IMAGE=golang:1.26.2-alpine3.23@sha256:f85330846cde1e57ca9ec309382da3b8e6ae3ab943d2739500e08c86393a21b1
-ARG RUNTIME_IMAGE=alpine:3.23.3@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659
+ARG GO_IMAGE=golang:1.26.6-alpine3.23@sha256:e57c41c1d5864341031181b0db34b9a537bb5773eb6428e4e5bdaea0f9135406
+ARG RUNTIME_IMAGE=alpine:3.23.5@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40
 
 FROM ${GO_IMAGE} AS build
 
@@ -19,7 +19,7 @@ RUN case "${POMEGRANATE_REF}" in \
     test "${#POMEGRANATE_REF}" -eq 40 && \
     grep -Fq "\"commit\": \"${POMEGRANATE_REF}\"" /tmp/pomegranate.lock.json && \
     sha256sum -c /tmp/pomegranate.sha256 && \
-    grep -Fxq 'go 1.26.2' go.mod && \
+    grep -Fxq 'go 1.26.6' go.mod && \
     grep -Fq 'fiatjaf.com/promenade v0.4.4-0.20260511003220-ce69ab3c4a4d' go.mod && \
     grep -Fq 'github.com/a-h/templ v0.3.1020' go.mod
 

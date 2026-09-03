@@ -13,9 +13,9 @@ reimplement its FROST/NIP-46 protocol.
 | Promenade Go module      | `v0.4.4-0.20260511003220-ce69ab3c4a4d` (`ce69ab3c4a4d9a6079d0986a1a2fd932eb239d26`)                  |
 | Promenade browser dealer | `jsr:@fiatjaf/promenade-trusted-dealer@0.4.3`                                                        |
 | Nostr tools              | `jsr:@nostr/tools@2.25.1`                                                                            |
-| Go                       | `1.26.2`                                                                                             |
-| Builder                  | `golang:1.26.2-alpine3.23@sha256:f85330846cde1e57ca9ec309382da3b8e6ae3ab943d2739500e08c86393a21b1`   |
-| Runtime                  | `alpine:3.23.3@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659`              |
+| Go                       | `1.26.6`                                                                                             |
+| Builder                  | `golang:1.26.6-alpine3.23@sha256:e57c41c1d5864341031181b0db34b9a537bb5773eb6428e4e5bdaea0f9135406`   |
+| Runtime                  | `alpine:3.23.5@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40`              |
 | Test runtime             | `denoland/deno:alpine-2.9.6@sha256:aa665f8777136863b5b8a0445a5cdfccff8103b5f40c9a877de5276b04facb1e` |
 | Docker CLI in test image | `29.5.3-r0` with Compose `5.1.4-r0`                                                                  |
 

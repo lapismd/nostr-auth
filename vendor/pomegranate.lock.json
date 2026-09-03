@@ -5,6 +5,7 @@
   "manifest": "pomegranate.sha256",
   "localPatches": [
     "signing-hardening: validate signer identities and commitments, verify aggregate signatures, isolate request tags, and reject unexpected central keys without panicking",
-    "oauth-and-central-boundary: derive OAuth cookie security from public callbacks and restrict operator registration traffic to bounded requests for trusted central origins"
+    "oauth-and-central-boundary: derive OAuth cookie security from public callbacks and restrict operator registration traffic to bounded requests for trusted central origins",
+    "dependency-refresh: update Go to 1.26.6 and golang.org/x/net to 0.55.0 with compatible x/crypto and x/sys releases"
   ]
 }

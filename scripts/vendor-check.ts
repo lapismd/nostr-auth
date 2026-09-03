@@ -42,7 +42,8 @@ export async function validateVendorTree(): Promise<void> {
   const goMod = await Deno.readTextFile(new URL("go.mod", VENDOR_ROOT));
   for (
     const pin of [
-      "go 1.26.2",
+      "go 1.26.6",
+      "golang.org/x/net v0.55.0",
       "fiatjaf.com/promenade v0.4.4-0.20260511003220-ce69ab3c4a4d",
       "github.com/a-h/templ v0.3.1020",
     ]
