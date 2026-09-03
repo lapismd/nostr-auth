@@ -4,11 +4,14 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"slices"
 	"sync"
 
 	"fiatjaf.com/nostr"
 	"fiatjaf.com/pomegranate/common"
 	"fiatjaf.com/promenade/frost"
+	"github.com/btcsuite/btcd/btcec/v2"
+	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	"github.com/mailru/easyjson"
 	"golang.org/x/sync/errgroup"
 )
@@ -17,6 +20,57 @@ var (
 	lambdaRegistry     = make(frost.LambdaRegistry)
 	lambdaRegistryLock sync.Mutex
 )
+
+func newSigningRequestEvent(
+	kind nostr.Kind,
+	content string,
+	email string,
+	sessionID nostr.ID,
+	selected []AccountOperator,
+) nostr.Event {
+	evt := nostr.Event{
+		CreatedAt: nostr.Now(),
+		Kind:      kind,
+		Content:   content,
+		Tags:      make(nostr.Tags, 0, 2+len(selected)),
+	}
+	evt.Tags = append(evt.Tags, nostr.Tag{"email", email})
+	evt.Tags = append(evt.Tags, nostr.Tag{"e", sessionID.Hex()})
+	for _, operator := range selected {
+		evt.Tags = append(evt.Tags, nostr.Tag{"operator", operator.URL})
+	}
+	return evt
+}
+
+func computeValidatedGroupCommitment(
+	cfg *frost.Configuration,
+	commitments []frost.Commitment,
+	message []byte,
+) (frost.BinoncePublic, *btcec.ModNScalar, *btcec.JacobianPoint, error) {
+	ordered := slices.Clone(commitments)
+	slices.SortFunc(ordered, func(a, b frost.Commitment) int {
+		return a.SignerID - b.SignerID
+	})
+	if err := cfg.ValidateCommitmentList(ordered); err != nil {
+		return frost.BinoncePublic{}, nil, nil, fmt.Errorf("invalid commitment list: %w", err)
+	}
+
+	groupCommitment, bindingCoefficient, finalNonce := cfg.ComputeGroupCommitment(commitments, message)
+	return groupCommitment, bindingCoefficient, finalNonce, nil
+}
+
+func attachVerifiedEventSignature(event *nostr.Event, signature *schnorr.Signature) error {
+	if signature == nil {
+		return fmt.Errorf("aggregated signature is nil")
+	}
+
+	event.Sig = [64]byte(signature.Serialize())
+	if !event.VerifySignature() {
+		event.Sig = [64]byte{}
+		return fmt.Errorf("aggregated signature failed verification")
+	}
+	return nil
+}
 
 func (a *AccountRecord) GetPublicKey(ctx context.Context) (nostr.PubKey, error) {
 	return a.PubKey, nil
@@ -79,6 +133,14 @@ func (a *AccountRecord) SignEvent(ctx context.Context, event *nostr.Event) (err 
 			if err := commitment.DecodeHex(body); err != nil {
 				return fmt.Errorf("failed decode commitment from %s: %w", operator.URL, err)
 			}
+			if commitment.SignerID != operator.shard.ID {
+				return fmt.Errorf(
+					"commitment from %s has signer id %d, expected %d",
+					operator.URL,
+					commitment.SignerID,
+					operator.shard.ID,
+				)
+			}
 
 			commitments[i] = commitment
 			log.Info().Str("operator", operator.URL).Int("signer_id", commitment.SignerID).Msg("operator commitment received")
@@ -90,38 +152,37 @@ func (a *AccountRecord) SignEvent(ctx context.Context, event *nostr.Event) (err 
 	}
 
 	// build group commitment
-	groupCommitment, bindingCoefficient, finalNonce := cfg.ComputeGroupCommitment(commitments, event.ID[:])
+	groupCommitment, bindingCoefficient, finalNonce, err := computeValidatedGroupCommitment(
+		cfg,
+		commitments,
+		event.ID[:],
+	)
+	if err != nil {
+		return err
+	}
 	log.Info().Msg("group commitment computed")
 
 	// prepare group commitment payload
-	groupCommitEvt := nostr.Event{
-		CreatedAt: nostr.Now(),
-		Kind:      common.KindGroupCommit,
-		Content:   groupCommitment.Hex(),
-		Tags:      make(nostr.Tags, 0, 2+len(selected)),
-	}
-	groupCommitEvt.Tags = append(confEvt.Tags, nostr.Tag{"email", a.Email})
-	groupCommitEvt.Tags = append(groupCommitEvt.Tags, nostr.Tag{"e", sessionID.Hex()})
-	for _, operator := range selected {
-		groupCommitEvt.Tags = append(groupCommitEvt.Tags, nostr.Tag{"operator", operator.URL})
-	}
+	groupCommitEvt := newSigningRequestEvent(
+		common.KindGroupCommit,
+		groupCommitment.Hex(),
+		a.Email,
+		sessionID,
+		selected,
+	)
 	if err := groupCommitEvt.Sign(settings.secretKey); err != nil {
 		return fmt.Errorf("sign group commitment event: %w", err)
 	}
 
 	// prepare event to be signed payload
 	jevt, _ := easyjson.Marshal(event)
-	evtEvt := nostr.Event{
-		CreatedAt: nostr.Now(),
-		Kind:      common.KindEventToBeSigned,
-		Content:   string(jevt),
-		Tags:      make(nostr.Tags, 0, 2+len(selected)),
-	}
-	evtEvt.Tags = append(confEvt.Tags, nostr.Tag{"email", a.Email})
-	evtEvt.Tags = append(evtEvt.Tags, nostr.Tag{"e", sessionID.Hex()})
-	for _, operator := range selected {
-		evtEvt.Tags = append(evtEvt.Tags, nostr.Tag{"operator", operator.URL})
-	}
+	evtEvt := newSigningRequestEvent(
+		common.KindEventToBeSigned,
+		string(jevt),
+		a.Email,
+		sessionID,
+		selected,
+	)
 	if err := evtEvt.Sign(settings.secretKey); err != nil {
 		return fmt.Errorf("sign event request event: %w", err)
 	}
@@ -145,6 +206,14 @@ func (a *AccountRecord) SignEvent(ctx context.Context, event *nostr.Event) (err 
 			var partial frost.PartialSignature
 			if err := partial.DecodeHex(body); err != nil {
 				return fmt.Errorf("decode partial signature from %s: %w", operator.URL, err)
+			}
+			if partial.SignerIdentifier != operator.shard.ID {
+				return fmt.Errorf(
+					"partial signature from %s has signer id %d, expected %d",
+					operator.URL,
+					partial.SignerIdentifier,
+					operator.shard.ID,
+				)
 			}
 
 			partials[i] = partial
@@ -186,7 +255,9 @@ func (a *AccountRecord) SignEvent(ctx context.Context, event *nostr.Event) (err 
 		return fmt.Errorf("failed to aggregate signatures: %w", err)
 	}
 
-	event.Sig = [64]byte(sig.Serialize())
+	if err := attachVerifiedEventSignature(event, sig); err != nil {
+		return err
+	}
 	log.Info().Msg("signing session finished")
 	return nil
 }

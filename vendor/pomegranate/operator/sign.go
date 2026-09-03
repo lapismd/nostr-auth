@@ -54,7 +54,7 @@ func handleSign(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if reg.CentralPubKey != evt.PubKey.Hex() {
-		http.Error(w, err.Error(), http.StatusUnauthorized)
+		http.Error(w, "request signed by unexpected central", http.StatusUnauthorized)
 		return
 	}
 

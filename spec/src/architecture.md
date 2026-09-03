@@ -9,10 +9,12 @@ additional, or modified vendor files until the manifest is intentionally refresh
 checks the Go, templ, and Promenade pins, runs the vendored Go tests, and produces both binaries.
 Runtime role selection is configuration, so central and operator images cannot drift.
 
-The initial vendor tree is byte-for-byte the pinned upstream source. Future OAuth-provider changes
-may patch the common, central, and operator packages locally, but each patch must be named in the
-lock, covered by focused Go tests, and retain the upstream Unlicense. This makes the fork boundary
-explicit without hiding divergence behind Docker build-time mutations.
+The vendor tree starts from the pinned upstream source and may carry governed local changes in the
+common, central, and operator packages. Each patch must be named in the lock, covered by focused Go
+tests, included in the complete checksum manifest, and retain the upstream Unlicense. The current
+signing-hardening patch validates FROST inputs and the final signature without changing the wire
+protocol. This makes the fork boundary explicit without hiding divergence behind Docker build-time
+mutations.
 
 Two documented wrappers compensate for properties of the pinned revision: central bind forwarding
 and pre-stdout sensitive-response redaction. Neither changes the HTTP, NIP-46, FROST, persistence,

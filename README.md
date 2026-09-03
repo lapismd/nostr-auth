@@ -19,12 +19,12 @@ reimplement its FROST/NIP-46 protocol.
 | Test runtime             | `denoland/deno:alpine-2.9.6@sha256:aa665f8777136863b5b8a0445a5cdfccff8103b5f40c9a877de5276b04facb1e` |
 | Docker CLI in test image | `29.5.3-r0` with Compose `5.1.4-r0`                                                                  |
 
-`vendor/pomegranate` is the exact initial source snapshot. The accompanying lock and complete
-SHA-256 manifest bind it to the full upstream commit. Docker performs no Pomegranate source fetch:
-it checks the requested full lowercase SHA against the lock, verifies every vendored file, confirms
-the Go/templ/Promenade pins, runs the Go tests, and builds locally. Upstream Pomegranate is
-Unlicense-licensed; its license is preserved in the vendor tree. The deployment wrapper and
-TypeScript integration are MIT.
+`vendor/pomegranate` is an auditable source fork based on the pinned upstream commit. The
+accompanying lock records the base and named local patches, while the complete SHA-256 manifest
+binds every current file. Docker performs no Pomegranate source fetch: it checks the requested full
+lowercase SHA against the lock, verifies every vendored file, confirms the Go/templ/Promenade pins,
+runs the Go tests, and builds locally. Upstream Pomegranate is Unlicense-licensed; its license is
+preserved in the vendor tree. The deployment wrapper and TypeScript integration are MIT.
 
 The pinned source already includes Google, GitHub, Microsoft, and Apple flows. This deployment
 continues to enable and test Google only. See `vendor/README.md` for the governed patch process when
@@ -173,6 +173,7 @@ removed when a later pinned upstream revision supplies equivalent behavior.
 
 ## Scope
 
-This repository does not alter Lapis login screens, migrate current users, deploy to Coolify,
-publish a package, or currently carry a local Pomegranate patch. A later Lapis change can expose
-“Continue with Google” and pass the resulting bunker URI to the existing signer abstraction.
+This repository does not alter Lapis login screens, migrate current users, deploy to Coolify, or
+publish a package. Its governed local Pomegranate patches are deployment hardening changes recorded
+in `vendor/pomegranate.lock.json`. A later Lapis change can expose “Continue with Google” and pass
+the resulting bunker URI to the existing signer abstraction.

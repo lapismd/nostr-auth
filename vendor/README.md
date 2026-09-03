@@ -1,13 +1,18 @@
 # Vendored Pomegranate
 
-`pomegranate/` is an auditable source snapshot of the repository and commit recorded in
-`pomegranate.lock.json`. Its upstream Unlicense is preserved at `pomegranate/LICENSE`.
+`pomegranate/` is an auditable source fork based on the repository and commit recorded in
+`pomegranate.lock.json`. The lock's `localPatches` list records every intentional divergence from
+that base. The upstream Unlicense is preserved at `pomegranate/LICENSE`.
 
 The image builds this local source and never fetches Pomegranate. `pomegranate.sha256` records every
 file in the current vendor tree. `deno task vendor:check` rejects missing, extra, or modified files
 and confirms the Go, templ, and Promenade pins.
 
-Future local patches, including OAuth providers, must:
+The current signing-hardening patch validates FROST signer identities and commitment lists, verifies
+the final aggregate signature, prevents signing-request tag inheritance, and safely rejects a
+request signed by an unexpected central key.
+
+Further local patches, including OAuth providers, must:
 
 1. remain narrowly scoped in `pomegranate/common`, `pomegranate/central`, or
    `pomegranate/operator`;

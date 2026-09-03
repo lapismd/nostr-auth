@@ -3,5 +3,7 @@
   "commit": "ca0e7a9d697a7db0fc918f9b9335bc5b58d2ac3f",
   "license": "Unlicense",
   "manifest": "pomegranate.sha256",
-  "localPatches": []
+  "localPatches": [
+    "signing-hardening: validate signer identities and commitments, verify aggregate signatures, isolate request tags, and reject unexpected central keys without panicking"
+  ]
 }
