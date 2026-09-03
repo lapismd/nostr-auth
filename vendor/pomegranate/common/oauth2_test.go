@@ -7,9 +7,76 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
+
+	"golang.org/x/oauth2"
 )
+
+func TestOAuthLoginCookiesUsePublicRedirectScheme(t *testing.T) {
+	tests := []struct {
+		name        string
+		handler     func(*oauth2.Config) http.HandlerFunc
+		cookieCount int
+		sameSite    http.SameSite
+	}{
+		{name: "google", handler: HandleGoogleLogin, cookieCount: 2, sameSite: http.SameSiteLaxMode},
+		{name: "github", handler: HandleGitHubLogin, cookieCount: 2, sameSite: http.SameSiteLaxMode},
+		{name: "microsoft", handler: HandleMicrosoftLogin, cookieCount: 2, sameSite: http.SameSiteLaxMode},
+		{name: "apple form post", handler: HandleAppleLogin, cookieCount: 3, sameSite: http.SameSiteNoneMode},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			config := &oauth2.Config{
+				ClientID:    "test-client",
+				RedirectURL: "https://auth.example/callback",
+				Endpoint: oauth2.Endpoint{
+					AuthURL: "https://provider.example/authorize",
+				},
+			}
+			request := httptest.NewRequest(http.MethodGet, "http://internal/login?intent=recover", nil)
+			response := httptest.NewRecorder()
+
+			test.handler(config).ServeHTTP(response, request)
+
+			cookies := response.Result().Cookies()
+			if len(cookies) != test.cookieCount {
+				t.Fatalf("unexpected cookie count: got %d, want %d", len(cookies), test.cookieCount)
+			}
+			for _, cookie := range cookies {
+				if !cookie.Secure {
+					t.Errorf("cookie %q is not Secure", cookie.Name)
+				}
+				if cookie.SameSite != test.sameSite {
+					t.Errorf("cookie %q SameSite = %v, want %v", cookie.Name, cookie.SameSite, test.sameSite)
+				}
+			}
+		})
+	}
+}
+
+func TestOAuthLoginCookiesRemainUsableForLocalHTTP(t *testing.T) {
+	config := &oauth2.Config{
+		ClientID:    "test-client",
+		RedirectURL: "http://localhost:5033/callback/google",
+		Endpoint: oauth2.Endpoint{
+			AuthURL: "https://provider.example/authorize",
+		},
+	}
+	request := httptest.NewRequest(http.MethodGet, "http://internal/login", nil)
+	response := httptest.NewRecorder()
+
+	HandleGoogleLogin(config).ServeHTTP(response, request)
+
+	for _, cookie := range response.Result().Cookies() {
+		if cookie.Secure {
+			t.Errorf("local HTTP cookie %q unexpectedly marked Secure", cookie.Name)
+		}
+	}
+}
 
 func testJWK(t *testing.T, key *ecdsa.PublicKey, kid string) appleJWK {
 	t.Helper()

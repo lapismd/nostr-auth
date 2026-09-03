@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/mail"
 	"net/url"
@@ -13,7 +12,6 @@ import (
 	"time"
 
 	"fiatjaf.com/nostr"
-	"fiatjaf.com/nostr/nip11"
 	"fiatjaf.com/pomegranate/common"
 	"fiatjaf.com/promenade/frost"
 	"golang.org/x/oauth2"
@@ -67,7 +65,7 @@ func handleGoogleCallback(oauthConfig *oauth2.Config) http.HandlerFunc {
 				MaxAge:   300,
 				HttpOnly: true,
 				SameSite: http.SameSiteLaxMode,
-				Secure:   r.TLS != nil,
+				Secure:   serviceCookiesSecure(),
 			})
 			confirmErasePage(user.Email).Render(r.Context(), w)
 		} else {
@@ -105,7 +103,7 @@ func handleGitHubCallback(oauthConfig *oauth2.Config) http.HandlerFunc {
 				MaxAge:   300,
 				HttpOnly: true,
 				SameSite: http.SameSiteLaxMode,
-				Secure:   r.TLS != nil,
+				Secure:   serviceCookiesSecure(),
 			})
 			confirmErasePage(user.Email).Render(r.Context(), w)
 		} else {
@@ -142,7 +140,7 @@ func handleMicrosoftCallback(oauthConfig *oauth2.Config) http.HandlerFunc {
 				MaxAge:   300,
 				HttpOnly: true,
 				SameSite: http.SameSiteLaxMode,
-				Secure:   r.TLS != nil,
+				Secure:   serviceCookiesSecure(),
 			})
 			confirmErasePage(user.Mail).Render(r.Context(), w)
 		} else {
@@ -179,7 +177,7 @@ func handleAppleCallback() http.HandlerFunc {
 				MaxAge:   300,
 				HttpOnly: true,
 				SameSite: http.SameSiteLaxMode,
-				Secure:   r.TLS != nil,
+				Secure:   serviceCookiesSecure(),
 			})
 			confirmErasePage(user.Email).Render(r.Context(), w)
 		} else {
@@ -218,7 +216,7 @@ func handleDeleteShard(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   -1,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   r.TLS != nil,
+		Secure:   serviceCookiesSecure(),
 	})
 
 	w.WriteHeader(http.StatusNoContent)
@@ -250,8 +248,14 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing or invalid tags", http.StatusBadRequest)
 		return
 	}
+	centralURL, err := requireTrustedCentralURL(centralTag[1])
+	if err != nil {
+		log.Warn().Err(err).Str("pubkey", evt.PubKey.Hex()).Msg("op-register: untrusted central")
+		http.Error(w, "untrusted central", http.StatusForbidden)
+		return
+	}
 
-	log.Info().Str("email", emailTag[1]).Str("pubkey", evt.PubKey.Hex()).Str("central", centralTag[1]).Msg("op-register: request")
+	log.Info().Str("email", emailTag[1]).Str("pubkey", evt.PubKey.Hex()).Str("central", centralURL).Msg("op-register: request")
 
 	var shard frost.KeyShard
 	if err := shard.DecodeHex(evt.Content); err != nil {
@@ -280,36 +284,36 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 	req, err := http.NewRequestWithContext(
 		r.Context(),
 		http.MethodPost,
-		fmt.Sprintf("%s/operator/ack", centralTag[1]),
+		fmt.Sprintf("%s/operator/ack", centralURL),
 		strings.NewReader(url.Values{
 			"email": {emailTag[1]},
 			"url":   {settings.ServiceURL},
 		}.Encode()),
 	)
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	if err != nil {
 		log.Warn().Err(err).Str("email", emailTag[1]).Msg("op-register: create ack request")
 		http.Error(w, "failed to confirm with central: "+err.Error(), http.StatusBadGateway)
 		return
 	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("X-Pomegranate-Operator-Token", r.Header.Get("X-Pomegranate-Operator-Token"))
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := centralHTTPClient.Do(req)
 	if err != nil {
-		log.Warn().Err(err).Str("email", emailTag[1]).Str("central", centralTag[1]).Msg("op-register: ack to central failed")
+		log.Warn().Err(err).Str("email", emailTag[1]).Str("central", centralURL).Msg("op-register: ack to central failed")
 		http.Error(w, "failed to confirm with central: "+err.Error(), http.StatusBadGateway)
 		return
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		log.Warn().Str("email", emailTag[1]).Str("central", centralTag[1]).Int("status", resp.StatusCode).Str("body", string(body)).Msg("op-register: central rejected ack")
-		http.Error(w, "failed to confirm. central says: \""+string(body)+"\"", http.StatusBadGateway)
+		_, readErr := readCentralResponseBody(resp.Body)
+		log.Warn().Err(readErr).Str("email", emailTag[1]).Str("central", centralURL).Int("status", resp.StatusCode).Msg("op-register: central rejected ack")
+		http.Error(w, "central rejected registration acknowledgement", http.StatusBadGateway)
 		return
 	}
 
-	centralInfo, err := nip11.Fetch(r.Context(), centralTag[1])
+	centralInfo, err := fetchCentralInfo(r.Context(), centralURL)
 	if err != nil || centralInfo.Self == nil {
-		log.Warn().Err(err).Str("email", emailTag[1]).Str("central", centralTag[1]).Msg("op-register: fetch central pubkey")
+		log.Warn().Err(err).Str("email", emailTag[1]).Str("central", centralURL).Msg("op-register: fetch central pubkey")
 		http.Error(w, "failed to fetch central pubkey", http.StatusBadGateway)
 		return
 	}
@@ -327,8 +331,8 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 		// if one wants to use a new keypair with their previous email they'll have to delete their shards manually first
 		if existing.PubKey == "" {
 			// DEPRECATED, remove these hardcoded urls in 2028, start enforcing only full pubkey match (or maybe trust some preconfigured centrals?)
-			if centralTag[1] != "auth.njump.me" && centralTag[1] != "auth.yakihonne.com" {
-				log.Warn().Str("email", emailTag[1]).Str("central", centralTag[1]).Msg("op-register: legacy empty pubkey registration rejected by central")
+			if centralURL != "https://auth.njump.me" && centralURL != "https://auth.yakihonne.com" {
+				log.Warn().Str("email", emailTag[1]).Str("central", centralURL).Msg("op-register: legacy empty pubkey registration rejected by central")
 				http.Error(w, "a pubkey is already registered for this email, but it was never stored; this central cannot claim it", http.StatusForbidden)
 				return
 			}
@@ -342,7 +346,7 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 	reg := Registration{
 		Email:         emailTag[1],
 		PubKey:        evt.PubKey.Hex(),
-		Central:       centralTag[1],
+		Central:       centralURL,
 		CentralPubKey: centralInfo.Self.Hex(),
 		Shard:         evt.Content,
 	}
@@ -353,6 +357,6 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Info().Str("email", emailTag[1]).Str("central", centralTag[1]).Msg("op-register: registration saved")
+	log.Info().Str("email", emailTag[1]).Str("central", centralURL).Msg("op-register: registration saved")
 	w.WriteHeader(http.StatusOK)
 }

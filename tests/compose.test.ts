@@ -26,6 +26,7 @@ Deno.test("development Compose renders a hardened, isolated 2-of-3 topology", as
     const service = services[name];
     assertEquals(service.environment.POMEGRANATE_ROLE, "operator");
     assertEquals(service.environment.SERVICE_URL, `http://${name}:5041`);
+    assertEquals(service.environment.TRUSTED_CENTRAL_URLS, "http://central:5033");
     assertEquals(service.image, "lapismd/nostr-auth-pomegranate:ca0e7a9d697a");
     assert(service.read_only);
     assertEquals(service.cap_drop, ["ALL"]);
@@ -77,6 +78,10 @@ Deno.test("production Compose exposes only central and optional Lapis operator t
   assertEquals(Object.keys(services).sort(), ["central", "lapis-operator"]);
   assertEquals(services.central.environment.SERVICE_URL, "https://auth.lapis.md");
   assertEquals(services["lapis-operator"].environment.SERVICE_URL, "https://po.lapis.md");
+  assertEquals(
+    services["lapis-operator"].environment.TRUSTED_CENTRAL_URLS,
+    "https://auth.lapis.md",
+  );
   assertEquals(services.central.expose, ["5033"]);
   assertEquals(services["lapis-operator"].expose, ["5041"]);
   assertFalse("ports" in services.central);

@@ -4,6 +4,7 @@
   "license": "Unlicense",
   "manifest": "pomegranate.sha256",
   "localPatches": [
-    "signing-hardening: validate signer identities and commitments, verify aggregate signatures, isolate request tags, and reject unexpected central keys without panicking"
+    "signing-hardening: validate signer identities and commitments, verify aggregate signatures, isolate request tags, and reject unexpected central keys without panicking",
+    "oauth-and-central-boundary: derive OAuth cookie security from public callbacks and restrict operator registration traffic to bounded requests for trusted central origins"
   ]
 }

@@ -16,6 +16,11 @@ signing-hardening patch validates FROST inputs and the final signature without c
 protocol. This makes the fork boundary explicit without hiding divergence behind Docker build-time
 mutations.
 
+The operator accepts registration only from administrator-configured exact central origins. Its
+acknowledgement and NIP-11 requests have fixed time and response-size bounds and never follow
+redirects. OAuth cookie security follows the configured public callback scheme rather than the
+container's loopback HTTP connection behind the TLS terminator.
+
 Two documented wrappers compensate for properties of the pinned revision: central bind forwarding
 and pre-stdout sensitive-response redaction. Neither changes the HTTP, NIP-46, FROST, persistence,
 or authentication protocol.

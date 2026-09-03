@@ -5,6 +5,7 @@ x-operator: &operator
     POMEGRANATE_LISTEN_PORT: "5041"
     PORT: "5041"
     DB_PATH: /var/lib/pomegranate/operator.db
+    TRUSTED_CENTRAL_URLS: http://central:5033
     GOOGLE_CLIENT_ID: deterministic-test-client
     GOOGLE_CLIENT_SECRET: deterministic-test-secret
   expose:

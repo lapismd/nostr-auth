@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,6 +22,11 @@ import (
 
 const stateCookieName = "google_oauth_state"
 const intentCookieName = "pomegranate_intent"
+
+func oauthCookieSecure(redirectURL string) bool {
+	parsed, err := url.Parse(redirectURL)
+	return err == nil && strings.EqualFold(parsed.Scheme, "https")
+}
 
 type GoogleUser struct {
 	ID            string `json:"id"`
@@ -43,7 +49,7 @@ func HandleGoogleLogin(oauthConfig *oauth2.Config) http.HandlerFunc {
 			Value:    state,
 			Path:     "/",
 			HttpOnly: true,
-			Secure:   r.TLS != nil,
+			Secure:   oauthCookieSecure(oauthConfig.RedirectURL),
 			SameSite: http.SameSiteLaxMode,
 			MaxAge:   600,
 		})
@@ -55,7 +61,7 @@ func HandleGoogleLogin(oauthConfig *oauth2.Config) http.HandlerFunc {
 				Value:    intent,
 				Path:     "/",
 				HttpOnly: true,
-				Secure:   r.TLS != nil,
+				Secure:   oauthCookieSecure(oauthConfig.RedirectURL),
 				SameSite: http.SameSiteLaxMode,
 				MaxAge:   600,
 			})
@@ -146,7 +152,7 @@ func HandleGitHubLogin(oauthConfig *oauth2.Config) http.HandlerFunc {
 			Value:    state,
 			Path:     "/",
 			HttpOnly: true,
-			Secure:   r.TLS != nil,
+			Secure:   oauthCookieSecure(oauthConfig.RedirectURL),
 			SameSite: http.SameSiteLaxMode,
 			MaxAge:   600,
 		})
@@ -158,7 +164,7 @@ func HandleGitHubLogin(oauthConfig *oauth2.Config) http.HandlerFunc {
 				Value:    intent,
 				Path:     "/",
 				HttpOnly: true,
-				Secure:   r.TLS != nil,
+				Secure:   oauthCookieSecure(oauthConfig.RedirectURL),
 				SameSite: http.SameSiteLaxMode,
 				MaxAge:   600,
 			})
@@ -264,7 +270,7 @@ func HandleMicrosoftLogin(oauthConfig *oauth2.Config) http.HandlerFunc {
 			Value:    state,
 			Path:     "/",
 			HttpOnly: true,
-			Secure:   r.TLS != nil,
+			Secure:   oauthCookieSecure(oauthConfig.RedirectURL),
 			SameSite: http.SameSiteLaxMode,
 			MaxAge:   600,
 		})
@@ -276,7 +282,7 @@ func HandleMicrosoftLogin(oauthConfig *oauth2.Config) http.HandlerFunc {
 				Value:    intent,
 				Path:     "/",
 				HttpOnly: true,
-				Secure:   r.TLS != nil,
+				Secure:   oauthCookieSecure(oauthConfig.RedirectURL),
 				SameSite: http.SameSiteLaxMode,
 				MaxAge:   600,
 			})
@@ -371,8 +377,8 @@ func HandleAppleLogin(oauthConfig *oauth2.Config) http.HandlerFunc {
 			Value:    state,
 			Path:     "/",
 			HttpOnly: true,
-			Secure:   r.TLS != nil,
-			SameSite: http.SameSiteLaxMode,
+			Secure:   oauthCookieSecure(oauthConfig.RedirectURL),
+			SameSite: http.SameSiteNoneMode,
 			MaxAge:   600,
 		})
 
@@ -386,8 +392,8 @@ func HandleAppleLogin(oauthConfig *oauth2.Config) http.HandlerFunc {
 			Value:    nonce,
 			Path:     "/",
 			HttpOnly: true,
-			Secure:   r.TLS != nil,
-			SameSite: http.SameSiteLaxMode,
+			Secure:   oauthCookieSecure(oauthConfig.RedirectURL),
+			SameSite: http.SameSiteNoneMode,
 			MaxAge:   600,
 		})
 
@@ -398,8 +404,8 @@ func HandleAppleLogin(oauthConfig *oauth2.Config) http.HandlerFunc {
 				Value:    intent,
 				Path:     "/",
 				HttpOnly: true,
-				Secure:   r.TLS != nil,
-				SameSite: http.SameSiteLaxMode,
+				Secure:   oauthCookieSecure(oauthConfig.RedirectURL),
+				SameSite: http.SameSiteNoneMode,
 				MaxAge:   600,
 			})
 		}

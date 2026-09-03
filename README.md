@@ -75,6 +75,9 @@ po.lapis.md    -> lapis-operator:5041 (optional)
 Configure Coolify/Traefik to terminate TLS, redirect HTTP to HTTPS, preserve forwarded host/proto,
 and allow WebSocket upgrades on central. Do not publish the container ports on the host.
 `SERVICE_URL` is authoritative for callbacks and must exactly match the public origin.
+OAuth state cookies derive their `Secure` attribute from that public callback URL, so TLS
+termination at Coolify does not weaken them. Apple's cross-site form callback additionally uses
+`SameSite=None`; the other enabled provider flows use `SameSite=Lax`.
 
 Google OAuth redirect URIs are:
 
@@ -89,6 +92,11 @@ either the exact upstream variable or its `_FILE` counterpart for secret values,
 these Compose files, configure the `CENTRAL_*` and `OPERATOR_*` inputs shown in `.env.example`;
 Compose maps them to the exact upstream names inside only the relevant service. Coolify may instead
 inject the exact names directly when it deploys each service independently.
+
+Set `OPERATOR_TRUSTED_CENTRAL_URLS` to the comma-separated exact origins of centrals allowed to
+register shards with the optional operator. The default permits only `https://auth.lapis.md`.
+Registration rejects every other central before making a request; allowed requests use a bounded,
+five-second client that does not follow redirects or accept oversized NIP-11 responses.
 
 Recommended client configuration:
 

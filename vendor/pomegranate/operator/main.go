@@ -17,6 +17,7 @@ import (
 type Settings struct {
 	Port               string `envconfig:"PORT" default:"5041"`
 	ServiceURL         string `envconfig:"SERVICE_URL" required:"true"`
+	TrustedCentralURLs string `envconfig:"TRUSTED_CENTRAL_URLS" required:"true"`
 	GoogleClientID     string `envconfig:"GOOGLE_CLIENT_ID"`
 	GoogleClientSecret string `envconfig:"GOOGLE_CLIENT_SECRET"`
 	DBPath             string `envconfig:"DB_PATH" default:"operator.db"`
@@ -39,6 +40,10 @@ func main() {
 	err := envconfig.Process("", &settings)
 	if err != nil {
 		log.Fatal().Err(err).Msg("process env")
+	}
+	trustedCentralURLs, err = parseTrustedCentralURLs(settings.TrustedCentralURLs)
+	if err != nil {
+		log.Fatal().Err(err).Msg("process trusted central URLs")
 	}
 
 	db, err = bolt.Open(settings.DBPath, 0600, nil)
