@@ -56,9 +56,9 @@ and GitHub build provenance. The default branch produces `edge`; every build pro
 `<major>.<minor>`, and `latest`.
 
 Production deployments should select a version and pin the resolved manifest digest. GitHub keeps
-container-package visibility separate from repository visibility. After the first workflow push, a
-package administrator must make `nostr-auth-pomegranate` public and rerun the workflow. Its final
-anonymous-read gate fails while the package is private.
+container-package visibility separate from repository visibility. The workflow finishes only when
+the published image is anonymously readable. If a new package inherits private visibility, a package
+administrator must make `nostr-auth-pomegranate` public and rerun the failed workflow.
 
 ## Authentication client
 
