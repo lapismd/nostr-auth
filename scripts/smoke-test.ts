@@ -15,7 +15,7 @@ const canary = `NIP46-PLAINTEXT-${crypto.randomUUID()}`;
 
 const client = new PomegranateClient({ centralUrl, operators: operatorUrls, threshold });
 const token = (await Deno.readTextFile(tokenFile)).trim();
-const session = await client.verifySessionToken(token);
+const session = await client.verifySessionToken(token, "google");
 const userSecret = generateSecretKey();
 const userSecretHex = bytesToHex(userSecret);
 let registration: PreparedRegistration | undefined;
@@ -24,6 +24,7 @@ let counterpartySecret: Uint8Array | undefined;
 const sensitiveCanaries = [token, userSecretHex, canary];
 
 try {
+  await assertGitHubOAuthRoutes();
   registration = client.prepareRegistration(userSecret);
   sensitiveCanaries.push(...registration.operators.map((operator) => operator.privateShard));
   await client.registerAccount(session, registration, userSecret);
@@ -189,6 +190,47 @@ try {
   counterpartySecret?.fill(0);
   if (registration) clearRegistration(registration);
   await restartStoppedOperators();
+}
+
+async function assertGitHubOAuthRoutes(): Promise<void> {
+  await assertGitHubAuthorizationRedirect(
+    `${centralUrl}/login/github`,
+    `${centralUrl}/callback/github`,
+  );
+
+  for (const operatorUrl of operatorUrls) {
+    const recoveryUrl = `${operatorUrl}/po/recover/github`;
+    const recovery = await fetch(recoveryUrl, { redirect: "manual" });
+    assertEquals(recovery.status, 302);
+    const actionLocation = recovery.headers.get("location");
+    assert(actionLocation);
+    const actionUrl = new URL(actionLocation, recoveryUrl);
+    assertEquals(actionUrl.href, `${operatorUrl}/po/action/github?intent=recover`);
+    await assertGitHubAuthorizationRedirect(
+      actionUrl.href,
+      `${operatorUrl}/po/callback/github`,
+    );
+  }
+}
+
+async function assertGitHubAuthorizationRedirect(
+  route: string,
+  expectedCallback: string,
+): Promise<void> {
+  const response = await fetch(route, { redirect: "manual" });
+  assertEquals(response.status, 302);
+  const location = response.headers.get("location");
+  assert(location);
+  const authorization = new URL(location);
+  assertEquals(authorization.origin, "https://github.com");
+  assertEquals(authorization.pathname, "/login/oauth/authorize");
+  assertEquals(authorization.searchParams.get("client_id"), "deterministic-test-client");
+  assertEquals(authorization.searchParams.get("redirect_uri"), expectedCallback);
+  assertEquals(
+    authorization.searchParams.get("scope")?.split(" ").sort(),
+    ["read:user", "user:email"],
+  );
+  assert(authorization.searchParams.get("state"));
 }
 
 async function signerFrom(bunkerUrl: string, secretKey: Uint8Array): Promise<BunkerSigner> {

@@ -65,9 +65,48 @@ Deno.test("Google login accepts only the opened popup at the central origin", as
   const session = await login;
   assertEquals(runtime.openedUrl, "http://central:5033/login/google");
   assertEquals(session.email, "user@example.com");
+  assertEquals(session.oauthProvider, "google");
   assertEquals(session.expiresAt.getTime(), NOW + 24 * 60 * 60 * 1000);
   assert(runtime.popup.closed);
   centralSecret.fill(0);
+});
+
+Deno.test("GitHub login preserves its provider for operator recovery", async () => {
+  const centralSecret = generateSecretKey();
+  const tokenEvent = finalizeEvent({
+    kind: 20443,
+    created_at: Math.floor(NOW / 1000),
+    content: "",
+    tags: [["email", "github-user@example.com"]],
+  }, centralSecret);
+  const runtime = new FakePopupRuntime();
+  const client = clientWith({
+    popupRuntime: runtime,
+    fetch: () => Promise.resolve(Response.json({ self: getPublicKey(centralSecret) })),
+  });
+
+  const login = client.loginWithGitHub({ timeoutMs: 1_000 });
+  await Promise.resolve();
+  runtime.emit("http://central:5033", { token: btoa(JSON.stringify(tokenEvent)) });
+
+  const session = await login;
+  assertEquals(runtime.openedUrl, "http://central:5033/login/github");
+  assertEquals(session.email, "github-user@example.com");
+  assertEquals(session.oauthProvider, "github");
+  centralSecret.fill(0);
+});
+
+Deno.test("GitHub recovery uses the selected operator's provider route", async () => {
+  const runtime = new FakePopupRuntime();
+  const client = clientWith({ popupRuntime: runtime });
+
+  const recovery = client.recoverShardWithGitHub("http://operator-1:5041", {
+    timeoutMs: 1_000,
+  });
+  await Promise.resolve();
+  assertEquals(runtime.openedUrl, "http://operator-1:5041/po/recover/github");
+  runtime.emit("http://operator-1:5041", "01ab");
+  assertEquals(await recovery, "01ab");
 });
 
 Deno.test("Google login rejects a token not signed by central NIP-11 self", async () => {
@@ -132,7 +171,7 @@ Deno.test("central tokens older than the upstream lifetime are rejected", async 
   });
 
   await assertRejects(
-    () => client.verifySessionToken(btoa(JSON.stringify(event))),
+    () => client.verifySessionToken(btoa(JSON.stringify(event)), "google"),
     Error,
     "expired",
   );
@@ -188,7 +227,7 @@ Deno.test("registration uses exact upstream event and header contracts", async (
     assert(verifyEvent(event));
     assertEquals(event.pubkey, getPublicKey(secret));
     assertEquals(event.tags, [
-      ["email", "smoke-test@lapis.invalid"],
+      ["email", "smoke-test@example.invalid"],
       ["central", "http://central:5033"],
       ["oauth", "google"],
     ]);
@@ -200,6 +239,26 @@ Deno.test("registration uses exact upstream event and header contracts", async (
       headers.get("X-Pomegranate-Operator-Token"),
       await digestHex(`registration-session:${operator.url}`),
     );
+  }
+  secret.fill(0);
+});
+
+Deno.test("GitHub sessions register GitHub as the operator recovery provider", async () => {
+  const events: NostrEvent[] = [];
+  const client = clientWith({
+    fetch: (_input, init = {}) => {
+      events.push(JSON.parse(String(init.body)) as NostrEvent);
+      return Promise.resolve(new Response(null, { status: 200 }));
+    },
+  });
+  const secret = generateSecretKey();
+  const registration = client.prepareRegistration(secret);
+
+  await client.registerOperators(fakeSession("github"), registration, secret);
+
+  assertEquals(events.length, 3);
+  for (const event of events) {
+    assertEquals(event.tags.find((tag) => tag[0] === "oauth"), ["oauth", "github"]);
   }
   secret.fill(0);
 });
@@ -235,7 +294,7 @@ Deno.test("onboarding confirms account, creates filter profile, and clears calle
           handler_pubkey: "f".repeat(64),
           name: "default",
           filter: (profileRequest as { filter: unknown }).filter,
-          email: "smoke-test@lapis.invalid",
+          email: "smoke-test@example.invalid",
         }, { status: 201 });
       }
       return new Response(null, { status: 200 });
@@ -271,10 +330,11 @@ function clientWith(
   }, { now: () => NOW, ...dependencies });
 }
 
-function fakeSession(): PomegranateSession {
+function fakeSession(oauthProvider: "google" | "github" = "google"): PomegranateSession {
   return {
     token: "test-token",
-    email: "smoke-test@lapis.invalid",
+    email: "smoke-test@example.invalid",
+    oauthProvider,
     centralUrl: "http://central:5033",
     createdAt: new Date(NOW),
     expiresAt: new Date(NOW + 60_000),

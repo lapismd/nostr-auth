@@ -1,6 +1,6 @@
 services:
   central:
-    image: lapismd/nostr-auth-pomegranate:${POMEGRANATE_IMAGE_TAG:-ca0e7a9d697a}
+    image: nostr-auth/pomegranate:${POMEGRANATE_IMAGE_TAG:-ca0e7a9d697a}
     build:
       context: .
       dockerfile: docker/Dockerfile

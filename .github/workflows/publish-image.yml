@@ -37,7 +37,7 @@ jobs:
         shell: bash
         run: >-
           docker build --pull --file docker/Dockerfile.test
-          --tag "lapismd/nostr-auth-test:${POMEGRANATE_TEST_IMAGE_TAG}" .
+          --tag "nostr-auth/test:${POMEGRANATE_TEST_IMAGE_TAG}" .
 
       - name: Run formatting, lint, type, specification, vendor, and unit checks
         shell: bash
@@ -47,7 +47,7 @@ jobs:
             --tmpfs /tmp:rw,noexec,nosuid,nodev,size=32m,mode=1777 \
             --cap-drop ALL \
             --security-opt no-new-privileges \
-            "lapismd/nostr-auth-test:${POMEGRANATE_TEST_IMAGE_TAG}" \
+            "nostr-auth/test:${POMEGRANATE_TEST_IMAGE_TAG}" \
             task check:all
 
       - name: Build the pinned Pomegranate image
@@ -66,13 +66,15 @@ jobs:
             aquasec/trivy:0.74.0@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969 \
             --cache-dir /tmp/trivy image \
             --scanners vuln --ignore-unfixed --severity HIGH,CRITICAL --exit-code 1 --no-progress \
-            "lapismd/nostr-auth-pomegranate:${POMEGRANATE_IMAGE_TAG}"
+            "nostr-auth/pomegranate:${POMEGRANATE_IMAGE_TAG}"
 
       - name: Run the live 2-of-3 protocol smoke test
         shell: bash
-        run: >-
-          docker compose -f compose.yml -f compose.dev.yml --profile test
-          run --rm test-runner task smoke
+        run: |
+          DOCKER_SOCKET_GID="$(stat --format=%g /var/run/docker.sock)"
+          export DOCKER_SOCKET_GID
+          docker compose -f compose.yml -f compose.dev.yml --profile test \
+            run --rm test-runner task smoke
 
       - name: Remove test containers and volumes
         if: always()

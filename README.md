@@ -1,13 +1,20 @@
 # nostr-auth
 
-[![CI](https://github.com/lapismd/nostr-auth/actions/workflows/ci.yml/badge.svg)](https://github.com/lapismd/nostr-auth/actions/workflows/ci.yml)
-[![Publish container image](https://github.com/lapismd/nostr-auth/actions/workflows/publish-image.yml/badge.svg)](https://github.com/lapismd/nostr-auth/actions/workflows/publish-image.yml)
+`nostr-auth` is a reproducible deployment and TypeScript integration boundary for upstream
+[Pomegranate](https://github.com/fiatjaf/pomegranate). It packages central and operator services for
+threshold FROST signing over NIP-46 without independently reimplementing the signing protocol.
 
-`nostr-auth` is LapisMD's reproducible deployment and TypeScript integration boundary for upstream
-Pomegranate. Its source is vendored so LapisMD can maintain OAuth-provider integrations while
-keeping Pomegranate an independently replaceable Go service. It publishes a hardened,
-multi-architecture container while leaving Pomegranate's FROST/NIP-46 protocol implementation
-upstream.
+The repository provides:
+
+- an integrity-checked, commit-pinned Pomegranate vendor tree;
+- hardened central and operator containers with persistent role-specific storage;
+- Google and GitHub OAuth login and operator-recovery integration;
+- a typed browser client for onboarding, profiles, NIP-46, and recovery;
+- a local 2-of-3 Compose topology and live protocol smoke test; and
+- attested `linux/amd64` and `linux/arm64` images published through GitHub Actions.
+
+The normative requirements are in [`spec/src/index.md`](spec/src/index.md). Production setup is
+documented in [`docs/deployment-coolify.md`](docs/deployment-coolify.md).
 
 ## Pinned supply chain
 
@@ -25,51 +32,56 @@ upstream.
 | Test runtime              | `denoland/deno:alpine-2.9.6@sha256:aa665f8777136863b5b8a0445a5cdfccff8103b5f40c9a877de5276b04facb1e` |
 | Docker CLI in test image  | `29.5.3-r1` with Compose `5.1.4-r1`                                                                  |
 
-`vendor/pomegranate` is an auditable source fork based on the pinned upstream commit. The
-accompanying lock records the base and named local patches, while the complete SHA-256 manifest
-binds every current file. Docker performs no Pomegranate source fetch: it checks the requested full
-lowercase SHA against the lock, verifies every vendored file, confirms the Go/templ/Promenade pins,
-runs the Go tests, and builds locally. Upstream Pomegranate is Unlicense-licensed; its license is
-preserved in the vendor tree. The deployment wrapper and TypeScript integration are MIT.
-
-The pinned source already includes Google, GitHub, Microsoft, and Apple flows. This deployment
-continues to enable and test Google only. See `vendor/README.md` for the governed patch process when
-adding a provider not present upstream; provider behavior and public client support are implemented
-as a separate, provider-specific slice.
+`vendor/pomegranate` is an auditable source fork based on the pinned upstream commit. Its lock
+records the base and named local patches, while the complete SHA-256 manifest binds every current
+file. Docker performs no Pomegranate source fetch: it verifies the requested full commit, the vendor
+manifest, dependency pins, generated Go source, and upstream tests before building the binaries. The
+upstream Unlicense is preserved in the vendor tree; this deployment boundary is MIT licensed.
 
 ## Continuous integration and public image
 
-GitHub Actions runs `deno task check:all` in the pinned test image and then executes the live 2-of-3
-Compose smoke test for pull requests and changes to `main`. Trusted `main` pushes, `v*.*.*` tags,
-and manual runs repeat those gates before publishing:
+Pull requests and `main` changes run the complete repository checks, the hardened image build, a
+current Trivy scan that rejects fixable high or critical runtime vulnerabilities, and the live
+2-of-3 Compose smoke test.
+
+Trusted `main` pushes, `v*.*.*` tags, and manual runs repeat those gates before publishing:
 
 ```text
-ghcr.io/lapismd/nostr-auth-pomegranate
+ghcr.io/<repository-owner>/nostr-auth-pomegranate
 ```
 
-Every publication includes `linux/amd64` and `linux/arm64` manifests, an SBOM, BuildKit provenance,
-and GitHub build provenance. A current Trivy database rejects fixable high or critical runtime
-vulnerabilities before publication. Version tags produce semantic-version image tags, the default
-branch produces `edge`, and every build has a `sha-<40-character-commit>` tag. A version release
-also produces `<major>.<minor>.<patch>`, `<major>.<minor>`, and `latest`. Workflow actions and
-helper images are immutable pins; Dependabot proposes action pin refreshes.
+Each publication includes `linux/amd64` and `linux/arm64` manifests, an SBOM, BuildKit provenance,
+and GitHub build provenance. The default branch produces `edge`; every build produces a
+`sha-<40-character-commit>` tag; version releases additionally produce `<major>.<minor>.<patch>`,
+`<major>.<minor>`, and `latest`.
 
-Pull the current default-branch image with:
+Production deployments should select a version and pin the resolved manifest digest. GitHub keeps
+container-package visibility separate from repository visibility. After the first workflow push, a
+package administrator must make `nostr-auth-pomegranate` public and rerun the workflow. Its final
+anonymous-read gate fails while the package is private.
 
-```sh
-docker pull ghcr.io/lapismd/nostr-auth-pomegranate:edge
+## Authentication client
+
+The browser client supports both configured providers:
+
+```ts
+const googleSession = await client.loginWithGoogle();
+const githubSession = await client.loginWithGitHub();
 ```
 
-Production deployments should select a version tag and pin the resolved manifest digest.
+Sessions retain their `oauthProvider`, and operator registration binds that provider into the
+upstream kind-20444 event. Recovery uses the matching `recoverShardWithGoogle` or
+`recoverShardWithGitHub` flow. Popup messages are accepted only from the exact opened window and
+configured service origin. Central tokens must have a valid signature, kind, email, age, and signer
+matching the central NIP-11 `self` field.
 
-GitHub does not copy repository visibility to a container package. After the first workflow push, an
-organization owner must open the `nostr-auth-pomegranate` package settings and change its visibility
-to **Public**. Rerun the workflow afterward. Its final anonymous-read gate intentionally fails while
-the package is private, and public GHCR images can then be pulled without credentials.
+The GitHub flow requests `read:user` and `user:email` and requires a usable verified email address.
+OAuth access tokens remain inside the upstream service flow; they are not returned by the TypeScript
+API or written to application logs.
 
 ## Local development
 
-The local topology is a functional test fixture, not a safe production trust boundary:
+The development topology is a functional test fixture, not a production trust boundary:
 
 ```text
 central ─┬─ operator-1
@@ -77,94 +89,36 @@ central ─┬─ operator-1
          └─ operator-3
 ```
 
-Start it with only Docker installed:
+Start it with Docker:
 
 ```sh
 docker compose -f compose.yml -f compose.dev.yml up --build
 ```
 
-Run the source checks and full protocol smoke test in the pinned test image:
+Run the repository checks and protocol smoke test in the pinned test image:
 
 ```sh
 docker compose -f compose.yml -f compose.dev.yml run --rm test-runner task check:all
 docker compose -f compose.yml -f compose.dev.yml --profile test run --rm test-runner task smoke
 ```
 
-The smoke container mounts `/var/run/docker.sock` so it can stop and restart operators. That mount
-is equivalent to host-level control and is strictly a local test facility. Never enable
-`test-runner` in production.
+The smoke container mounts `/var/run/docker.sock` and maps the socket's host group so its non-root
+user can stop and restart operators across Linux and Docker Desktop hosts. That mount is equivalent
+to host-level control and is strictly a local test facility. Never enable `test-runner` in
+production.
 
-Development creates a central signing key and a 24-hour kind-20443 test token inside separate named
-volumes. The test runner can read the token but cannot read the central key. Dummy Google values
-only make the operator registration route available; they cannot complete OAuth.
+Development creates a central signing key and a 24-hour kind-20443 test token in separate named
+volumes. The test runner can read the token but not the central key. Dummy Google and GitHub values
+make the production authentication routes testable without granting real provider access.
 
-## Coolify production deployment
+## Production deployment
 
-Deploy `compose.yml` with `compose.prod.yml`. The base deployment starts only central. Enable the
-`lapis-operator` profile when Lapis will also operate `po.lapis.md`.
+Use `compose.yml` with `compose.prod.yml`. The base topology starts central; the optional `operator`
+profile starts one colocated operator. Configure each service with independent secrets and storage,
+and keep external threshold operators under genuinely independent administrative boundaries.
 
-```text
-auth.lapis.md  -> central:5033
-po.lapis.md    -> lapis-operator:5041 (optional)
-```
-
-Configure Coolify/Traefik to terminate TLS, redirect HTTP to HTTPS, preserve forwarded host/proto,
-and allow WebSocket upgrades on central. Do not publish the container ports on the host.
-`SERVICE_URL` is authoritative for callbacks and must exactly match the public origin. OAuth state
-cookies derive their `Secure` attribute from that public callback URL, so TLS termination at Coolify
-does not weaken them. Apple's cross-site form callback additionally uses `SameSite=None`; the other
-enabled provider flows use `SameSite=Lax`.
-
-Google OAuth redirect URIs are:
-
-```text
-https://auth.lapis.md/callback/google
-https://po.lapis.md/po/callback/google
-```
-
-Give central and the optional operator separate Coolify environment/secret sets. The image accepts
-either the exact upstream variable or its `_FILE` counterpart for secret values, for example
-`SECRET_KEY_FILE` and `GOOGLE_CLIENT_SECRET_FILE`; setting both forms is an error. When deploying
-these Compose files, configure the `CENTRAL_*` and `OPERATOR_*` inputs shown in `.env.example`;
-Compose maps them to the exact upstream names inside only the relevant service. Coolify may instead
-inject the exact names directly when it deploys each service independently.
-
-Set `OPERATOR_TRUSTED_CENTRAL_URLS` to the comma-separated exact origins of centrals allowed to
-register shards with the optional operator. The default permits only `https://auth.lapis.md`.
-Registration rejects every other central before making a request; allowed requests use a bounded,
-five-second client that does not follow redirects or accept oversized NIP-11 responses.
-
-Recommended client configuration:
-
-```json
-{
-  "centralUrl": "https://auth.lapis.md",
-  "operators": [
-    "https://po.lapis.md",
-    "https://operator-a.example",
-    "https://operator-b.example"
-  ],
-  "threshold": 2
-}
-```
-
-The client accepts any upstream-valid `m-of-n` arrangement with at least two operators. It never
-requires the Lapis-operated operator.
-
-### Coolify acceptance
-
-After staging deployment, verify manually:
-
-1. Both public roots pass health checks over HTTPS and central accepts a WebSocket connection.
-2. Google login returns through `https://auth.lapis.md/callback/google` and account onboarding
-   completes.
-3. The default profile returns a bunker URI and can sign an allowed event.
-4. Recovery at each selected operator returns through `/po/callback/google` only after the user
-   confirms sharing the shard.
-5. Two recovered shares reconstruct the expected pubkey; resharing to the replacement operator set
-   restores NIP-46 signing.
-6. Container logs contain no token, shard, nsec, recovery payload, decrypted content, or
-   signed-event content.
+See [`docs/deployment-coolify.md`](docs/deployment-coolify.md) for routing, OAuth callbacks,
+environment variables, storage, and staging acceptance.
 
 ## Persistence, backup, and recovery
 
@@ -172,53 +126,43 @@ Central stores account/operator public-share metadata, profile restrictions, ema
 NIP-46 handler keys in `/var/lib/pomegranate/central.db`. A central backup alone cannot sign for a
 user.
 
-Each operator stores its user's private FROST shard, user pubkey, central URL and pubkey, and
-Google/email association in its own `/var/lib/pomegranate/operator.db`. Upstream bbolt storage does
-**not** encrypt these records. Production operator volumes therefore require encrypted host/block
-storage.
+Each operator stores its user's private FROST shard, user pubkey, central URL and pubkey, and OAuth
+association in `/var/lib/pomegranate/operator.db`. Upstream bbolt storage does **not** encrypt these
+records. Production operator volumes therefore require encrypted host or block storage.
 
 Create cold backups by stopping or quiescing one service at a time, copying its named volume, and
 restarting it before moving to another trust boundary. Never place a threshold number of operator
-backups in one ordinary destination. Run:
+backups in one ordinary destination. The backup manifest checker verifies readable archives and
+rejects any destination containing enough distinct operator backups to meet the threshold:
 
 ```sh
 docker compose run --rm test-runner run --allow-read scripts/backup-check.ts backup-manifest.json
 ```
 
-The manifest records `role`, `operatorId`, archive `path`, and independent `destination`; the
-checker verifies readable non-empty archives and rejects a destination containing `threshold`
-distinct operator backups.
+Recovery is client-side. The browser authenticates separately to threshold operators, reconstructs
+and verifies the pubkey locally, reshards to replacements, and clears temporary buffers. JavaScript
+strings, `bigint` values, and garbage collection prevent a guarantee of physical memory erasure; the
+implementation performs best-effort clearing and does not persist recovery material.
 
-Recovery is intentionally client-side. The browser authenticates separately to threshold operators,
-decodes the returned shares, reconstructs and verifies the pubkey, reshards to replacements, and
-clears temporary buffers. JavaScript strings, `bigint` values, and garbage collection prevent a
-guarantee of physical memory erasure; the implementation performs best-effort clearing and does not
-persist recovery material.
+Existing-key onboarding accepts only an exportable 32-byte secret already controlled locally. It
+cannot extract keys from NIP-07, NIP-55, hardware-backed, or other external signers.
 
-Existing-key onboarding accepts only an exportable 32-byte secret that the caller already controls
-locally. It cannot extract private keys from Amber, NIP-07 or NIP-55 providers, hardware signers, or
-any other external signer, and this repository does not claim that capability.
-
-## Security and upstream wrapper deviations
+## Security boundaries
 
 - Central compromise alone cannot sign user events.
 - One operator compromise alone cannot sign in a 2-of-3 deployment.
-- Threshold operator compromise can reconstruct/sign as the user.
-- Google account or provider compromise may enable recovery attempts and is part of Pomegranate's
-  trust model.
-- Operators that share a host, Docker daemon, cloud account, administrator, or backup destination do
+- Threshold operator compromise can reconstruct or sign as the user.
+- OAuth-provider account compromise may enable recovery attempts and is part of the trust model.
+- Operators sharing a host, Docker daemon, cloud account, administrator, or backup destination do
   not provide independent threshold security.
 
-The pinned upstream central listens only on loopback. The entrypoint therefore runs it on
-`127.0.0.1:15033` and supervises a `socat` listener on `0.0.0.0:5033`. The pinned upstream also logs
-the full NIP-46 response object. Before a line reaches stdout, the wrapper replaces response-bearing
-and secret-bearing records with fixed redaction events. These shims are regression-tested and can be
-removed when a later pinned upstream revision supplies equivalent behavior.
+The pinned upstream central listens only on loopback. The entrypoint runs it on `127.0.0.1:15033`
+and supervises a `socat` listener on `0.0.0.0:5033`. The pinned upstream also logs the full NIP-46
+response object, so the wrapper replaces response-bearing and secret-bearing records with fixed
+redaction events before they reach stdout. Both shims are regression-tested.
 
 ## Scope
 
-This repository does not alter Lapis login screens, migrate current users, deploy to Coolify, or
-publish an npm package. It builds and publishes the governed Pomegranate container. Its local
-Pomegranate patches are deployment hardening changes recorded in `vendor/pomegranate.lock.json`. A
-later Lapis change can expose “Continue with Google” and pass the resulting bunker URI to the
-existing signer abstraction.
+This repository packages and integrates Pomegranate. It does not implement product login screens,
+migrate users, deploy itself, or publish an npm package. Local upstream patches are limited to
+documented deployment hardening in `vendor/pomegranate.lock.json`.

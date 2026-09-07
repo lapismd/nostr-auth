@@ -67,7 +67,8 @@ Deno.test("resharding validates the replacement central before deleting the acco
   });
   const session: PomegranateSession = {
     token: "test-token",
-    email: "recovery@lapis.invalid",
+    email: "recovery@example.invalid",
+    oauthProvider: "google",
     centralUrl: "http://central:5033",
     createdAt: new Date(now),
     expiresAt: new Date(now + 60_000),

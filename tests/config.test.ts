@@ -1,6 +1,6 @@
 import { assertEquals, assertThrows } from "@std/assert";
 import {
-  DEFAULT_LAPIS_PROFILE_FILTER,
+  DEFAULT_PROFILE_FILTER,
   normalizeServiceUrl,
   toWebSocketUrl,
   validatePomegranateConfig,
@@ -20,7 +20,7 @@ Deno.test("configuration normalizes service origins and preserves arbitrary m-of
     "https://three.example",
   ]);
   assertEquals(config.threshold, 1);
-  assertEquals(config.defaultProfile.filter, DEFAULT_LAPIS_PROFILE_FILTER);
+  assertEquals(config.defaultProfile.filter, DEFAULT_PROFILE_FILTER);
 });
 
 Deno.test("configuration rejects duplicate, undersized, and insecure production URLs", () => {

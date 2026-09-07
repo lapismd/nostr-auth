@@ -11,6 +11,10 @@ Deno.test("CI runs the complete checks and live Compose smoke test", async () =>
   assertStringIncludes(workflow, "permissions:\n  contents: read");
   assertStringIncludes(workflow, "task check:all");
   assertStringIncludes(workflow, "task smoke");
+  assertStringIncludes(
+    workflow,
+    'DOCKER_SOCKET_GID="$(stat --format=%g /var/run/docker.sock)"',
+  );
   assertRuntimeVulnerabilityGate(workflow);
   assertStringIncludes(workflow, "down --volumes --remove-orphans");
   assertFalse(workflow.includes("pull_request_target:"));
@@ -40,6 +44,10 @@ Deno.test("trusted publication builds an attested multi-architecture GHCR image"
   );
   assertStringIncludes(workflow, "push: true");
   assertStringIncludes(workflow, "push-to-registry: true");
+  assertStringIncludes(
+    workflow,
+    'DOCKER_SOCKET_GID="$(stat --format=%g /var/run/docker.sock)"',
+  );
   assertRuntimeVulnerabilityGate(workflow);
   assertStringIncludes(
     workflow,

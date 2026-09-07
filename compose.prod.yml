@@ -1,5 +1,5 @@
 x-production-operator: &production-operator
-  image: lapismd/nostr-auth-pomegranate:${POMEGRANATE_IMAGE_TAG:-ca0e7a9d697a}
+  image: nostr-auth/pomegranate:${POMEGRANATE_IMAGE_TAG:-ca0e7a9d697a}
   build:
     context: .
     dockerfile: docker/Dockerfile
@@ -41,29 +41,35 @@ x-production-operator: &production-operator
 services:
   central:
     environment:
-      SERVICE_URL: ${CENTRAL_SERVICE_URL:-https://auth.lapis.md}
+      SERVICE_URL: ${CENTRAL_SERVICE_URL:-https://auth.example.com}
       GOOGLE_CLIENT_ID: ${CENTRAL_GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${CENTRAL_GOOGLE_CLIENT_SECRET:-}
       GOOGLE_CLIENT_SECRET_FILE: ${CENTRAL_GOOGLE_CLIENT_SECRET_FILE:-}
+      GITHUB_CLIENT_ID: ${CENTRAL_GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${CENTRAL_GITHUB_CLIENT_SECRET:-}
+      GITHUB_CLIENT_SECRET_FILE: ${CENTRAL_GITHUB_CLIENT_SECRET_FILE:-}
       SECRET_KEY: ${CENTRAL_SECRET_KEY:-}
       SECRET_KEY_FILE: ${CENTRAL_SECRET_KEY_FILE:-}
 
-  lapis-operator:
+  operator:
     <<: *production-operator
     profiles:
-      - lapis-operator
+      - operator
     environment:
       POMEGRANATE_ROLE: operator
       POMEGRANATE_LISTEN_PORT: "5041"
-      SERVICE_URL: ${OPERATOR_SERVICE_URL:-https://po.lapis.md}
+      SERVICE_URL: ${OPERATOR_SERVICE_URL:-https://operator.example.com}
       PORT: "5041"
       DB_PATH: /var/lib/pomegranate/operator.db
-      TRUSTED_CENTRAL_URLS: ${OPERATOR_TRUSTED_CENTRAL_URLS:-https://auth.lapis.md}
+      TRUSTED_CENTRAL_URLS: ${OPERATOR_TRUSTED_CENTRAL_URLS:-https://auth.example.com}
       GOOGLE_CLIENT_ID: ${OPERATOR_GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${OPERATOR_GOOGLE_CLIENT_SECRET:-}
       GOOGLE_CLIENT_SECRET_FILE: ${OPERATOR_GOOGLE_CLIENT_SECRET_FILE:-}
+      GITHUB_CLIENT_ID: ${OPERATOR_GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${OPERATOR_GITHUB_CLIENT_SECRET:-}
+      GITHUB_CLIENT_SECRET_FILE: ${OPERATOR_GITHUB_CLIENT_SECRET_FILE:-}
     volumes:
-      - lapis-operator-data:/var/lib/pomegranate
+      - operator-data:/var/lib/pomegranate
 
 volumes:
-  lapis-operator-data:
+  operator-data:

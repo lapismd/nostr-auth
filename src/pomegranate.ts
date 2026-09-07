@@ -20,6 +20,7 @@ import type {
   PomegranateAccount,
   PomegranateClientDependencies,
   PomegranateConfig,
+  PomegranateOAuthProvider,
   PomegranateProfile,
   PomegranateProfileFilter,
   PomegranateSession,
@@ -76,8 +77,19 @@ export class PomegranateClient {
   }
 
   async loginWithGoogle(options: LoginOptions = {}): Promise<PomegranateSession> {
+    return await this.#loginWithOAuthProvider("google", options);
+  }
+
+  async loginWithGitHub(options: LoginOptions = {}): Promise<PomegranateSession> {
+    return await this.#loginWithOAuthProvider("github", options);
+  }
+
+  async #loginWithOAuthProvider(
+    oauthProvider: PomegranateOAuthProvider,
+    options: LoginOptions,
+  ): Promise<PomegranateSession> {
     const token = await this.#waitForPopupValue(
-      `${this.config.centralUrl}/login/google`,
+      `${this.config.centralUrl}/login/${oauthProvider}`,
       this.config.centralUrl,
       (data) => {
         if (!isRecord(data) || typeof data.token !== "string" || !data.token) return undefined;
@@ -85,10 +97,14 @@ export class PomegranateClient {
       },
       options,
     );
-    return await this.verifySessionToken(token);
+    return await this.verifySessionToken(token, oauthProvider);
   }
 
-  async verifySessionToken(token: string): Promise<PomegranateSession> {
+  async verifySessionToken(
+    token: string,
+    oauthProvider: PomegranateOAuthProvider,
+  ): Promise<PomegranateSession> {
+    assertOAuthProvider(oauthProvider);
     const event = decodeCentralToken(token);
     if (!verifyEvent(event)) throw new Error("central token signature is invalid");
     if (event.kind !== CENTRAL_TOKEN_KIND) throw new Error("central token kind is invalid");
@@ -120,6 +136,7 @@ export class PomegranateClient {
     return {
       token,
       email,
+      oauthProvider,
       centralUrl: this.config.centralUrl,
       createdAt: new Date(createdAtMs),
       expiresAt: new Date(createdAtMs + TOKEN_LIFETIME_MS),
@@ -200,7 +217,7 @@ export class PomegranateClient {
         tags: [
           ["email", session.email],
           ["central", this.config.centralUrl],
-          ["oauth", "google"],
+          ["oauth", session.oauthProvider],
         ],
       }, secretKey);
       const operatorToken = await sha256Hex(`${registration.sessionId}:${operator.url}`);
@@ -321,10 +338,25 @@ export class PomegranateClient {
     operatorUrl: string,
     options: LoginOptions = {},
   ): Promise<string> {
+    return await this.#recoverShardWithOAuthProvider("google", operatorUrl, options);
+  }
+
+  async recoverShardWithGitHub(
+    operatorUrl: string,
+    options: LoginOptions = {},
+  ): Promise<string> {
+    return await this.#recoverShardWithOAuthProvider("github", operatorUrl, options);
+  }
+
+  async #recoverShardWithOAuthProvider(
+    oauthProvider: PomegranateOAuthProvider,
+    operatorUrl: string,
+    options: LoginOptions,
+  ): Promise<string> {
     const normalized = this.config.operators.find((url) => url === new URL(operatorUrl).origin);
     if (!normalized) throw new Error("recovery operator is not in the configured operator set");
     return await this.#waitForPopupValue(
-      `${normalized}/po/recover/google`,
+      `${normalized}/po/recover/${oauthProvider}`,
       normalized,
       (data) => typeof data === "string" && /^[0-9a-f]+$/.test(data) ? data : undefined,
       options,
@@ -382,6 +414,7 @@ export class PomegranateClient {
   }
 
   #assertSession(session: PomegranateSession): void {
+    assertOAuthProvider(session.oauthProvider);
     if (session.centralUrl !== this.config.centralUrl) {
       throw new Error("session belongs to a different central service");
     }
@@ -536,6 +569,12 @@ function parseAccount(value: unknown): PomegranateAccount {
 function assertSecretKey(secretKey: Uint8Array): void {
   if (secretKey.length !== 32 || secretKey.every((byte) => byte === 0)) {
     throw new TypeError("secret key must be a non-zero 32-byte array");
+  }
+}
+
+function assertOAuthProvider(value: string): asserts value is PomegranateOAuthProvider {
+  if (value !== "google" && value !== "github") {
+    throw new TypeError("OAuth provider must be google or github");
   }
 }
 

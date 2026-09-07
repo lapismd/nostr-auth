@@ -4,7 +4,7 @@ import type {
   ValidatedPomegranateConfig,
 } from "./types.ts";
 
-export const DEFAULT_LAPIS_PROFILE_FILTER = Object.freeze({
+export const DEFAULT_PROFILE_FILTER = Object.freeze({
   kinds: Object.freeze([
     0,
     5,
@@ -29,9 +29,9 @@ export const DEFAULT_LAPIS_PROFILE_FILTER = Object.freeze({
   ]) as unknown as number[],
 });
 
-export const DEFAULT_LAPIS_PROFILE: PomegranateProfileConfig = Object.freeze({
+export const DEFAULT_PROFILE: PomegranateProfileConfig = Object.freeze({
   name: "default",
-  filter: DEFAULT_LAPIS_PROFILE_FILTER,
+  filter: DEFAULT_PROFILE_FILTER,
 });
 
 export interface ValidateConfigOptions {
@@ -59,7 +59,7 @@ export function validatePomegranateConfig(
     throw new TypeError("threshold cannot exceed the operator count");
   }
 
-  const profile = input.defaultProfile ?? DEFAULT_LAPIS_PROFILE;
+  const profile = input.defaultProfile ?? DEFAULT_PROFILE;
   const name = profile.name.trim();
   if (!name) {
     throw new TypeError("default profile name is required");
