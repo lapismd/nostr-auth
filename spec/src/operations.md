@@ -17,3 +17,19 @@ destination must never contain enough distinct operator archives to meet the acc
 
 Container hardening includes non-root execution, read-only root filesystems, dropped capabilities,
 no-new-privileges, bounded PIDs/resources, health checks, restarts, and rotated Docker logs.
+
+## NA-OPS-002 — public container distribution
+
+Trusted pushes to `main`, semantic version tags, and explicitly dispatched builds publish
+`ghcr.io/<repository-owner>/nostr-auth-pomegranate` for `linux/amd64` and `linux/arm64`. Publication
+is gated on the same complete repository, live 2-of-3 smoke checks, and current scan rejecting
+fixable high or critical runtime vulnerabilities as CI. The image is built from the governed
+Pomegranate commit, carries an OCI source link to this repository, and is published by digest with
+BuildKit SBOM/provenance plus GitHub build provenance.
+
+The workflow grants package, attestation, artifact-metadata, and OIDC write scopes only to the
+publish job. External actions, the QEMU helper image, and the BuildKit daemon image are pinned
+immutably. The final job step drops registry credentials and verifies the resulting digest can be
+resolved anonymously. Because GitHub keeps package visibility separate from repository visibility,
+an administrator must make the package public after its first push; the anonymous-read gate fails
+until that is done.

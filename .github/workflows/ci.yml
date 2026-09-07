@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Repository and 2-of-3 smoke checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      COMPOSE_PROJECT_NAME: nostr-auth-ci-${{ github.run_id }}-${{ github.run_attempt }}
+      POMEGRANATE_IMAGE_TAG: ci-${{ github.run_id }}-${{ github.run_attempt }}
+      POMEGRANATE_TEST_IMAGE_TAG: ci-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build the pinned test environment
+        shell: bash
+        run: >-
+          docker build --pull --file docker/Dockerfile.test
+          --tag "lapismd/nostr-auth-test:${POMEGRANATE_TEST_IMAGE_TAG}" .
+
+      - name: Run formatting, lint, type, specification, vendor, and unit checks
+        shell: bash
+        run: |
+          docker run --rm \
+            --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=32m,mode=1777 \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            "lapismd/nostr-auth-test:${POMEGRANATE_TEST_IMAGE_TAG}" \
+            task check:all
+
+      - name: Build the pinned Pomegranate image
+        shell: bash
+        run: docker compose -f compose.yml -f compose.dev.yml build --pull central
+
+      - name: Reject fixable high and critical runtime vulnerabilities
+        shell: bash
+        run: |
+          docker run --rm \
+            --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=2g,mode=1777 \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --volume /var/run/docker.sock:/var/run/docker.sock:ro \
+            aquasec/trivy:0.74.0@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969 \
+            --cache-dir /tmp/trivy image \
+            --scanners vuln --ignore-unfixed --severity HIGH,CRITICAL --exit-code 1 --no-progress \
+            "lapismd/nostr-auth-pomegranate:${POMEGRANATE_IMAGE_TAG}"
+
+      - name: Run the live 2-of-3 protocol smoke test
+        shell: bash
+        run: >-
+          docker compose -f compose.yml -f compose.dev.yml --profile test
+          run --rm test-runner task smoke
+
+      - name: Remove test containers and volumes
+        if: always()
+        shell: bash
+        run: >-
+          docker compose -f compose.yml -f compose.dev.yml --profile test
+          down --volumes --remove-orphans

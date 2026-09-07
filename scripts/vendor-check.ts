@@ -43,7 +43,9 @@ export async function validateVendorTree(): Promise<void> {
   for (
     const pin of [
       "go 1.26.6",
-      "golang.org/x/net v0.55.0",
+      "golang.org/x/crypto v0.56.0",
+      "golang.org/x/net v0.58.0",
+      "golang.org/x/sys v0.47.0",
       "fiatjaf.com/promenade v0.4.4-0.20260511003220-ce69ab3c4a4d",
       "github.com/a-h/templ v0.3.1020",
     ]

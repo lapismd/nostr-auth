@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e
 
 ARG GO_IMAGE=golang:1.26.6-alpine3.23@sha256:e57c41c1d5864341031181b0db34b9a537bb5773eb6428e4e5bdaea0f9135406
 ARG RUNTIME_IMAGE=alpine:3.23.5@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40
@@ -20,6 +20,8 @@ RUN case "${POMEGRANATE_REF}" in \
     grep -Fq "\"commit\": \"${POMEGRANATE_REF}\"" /tmp/pomegranate.lock.json && \
     sha256sum -c /tmp/pomegranate.sha256 && \
     grep -Fxq 'go 1.26.6' go.mod && \
+    grep -Fq 'golang.org/x/crypto v0.56.0' go.mod && \
+    grep -Fq 'golang.org/x/net v0.58.0' go.mod && \
     grep -Fq 'fiatjaf.com/promenade v0.4.4-0.20260511003220-ce69ab3c4a4d' go.mod && \
     grep -Fq 'github.com/a-h/templ v0.3.1020' go.mod
 
@@ -44,7 +46,8 @@ LABEL org.opencontainers.image.source="https://basspistol.org/npub180cvv07tjdrrg
       org.opencontainers.image.revision="${POMEGRANATE_REF}" \
       org.opencontainers.image.licenses="MIT AND Unlicense"
 
-RUN apk add --no-cache ca-certificates=20260611-r0 socat=1.8.1.3-r0 && \
+RUN apk add --no-cache ca-certificates=20260611-r0 socat=1.8.1.3-r0 \
+      libcrypto3=3.5.8-r0 libssl3=3.5.8-r0 && \
     addgroup -g 65532 -S pomegranate && \
     adduser -u 65532 -S -D -H -G pomegranate pomegranate && \
     install -d -o 65532 -g 65532 -m 0700 /var/lib/pomegranate

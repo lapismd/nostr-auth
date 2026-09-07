@@ -1,15 +1,16 @@
 FROM denoland/deno:alpine-2.9.6@sha256:aa665f8777136863b5b8a0445a5cdfccff8103b5f40c9a877de5276b04facb1e
 
 USER root
-RUN apk add --no-cache docker-cli=29.5.3-r0 docker-cli-compose=5.1.4-r0
+RUN apk add --no-cache docker-cli=29.5.3-r1 docker-cli-compose=5.1.4-r1
 WORKDIR /workspace
 COPY deno.json deno.lock ./
 COPY src ./src
 COPY scripts ./scripts
 COPY tests ./tests
 COPY spec ./spec
+COPY .github ./.github
 COPY vendor ./vendor
-COPY docker/log-filter.awk ./docker/log-filter.awk
+COPY docker ./docker
 COPY compose.yml compose.dev.yml compose.prod.yml ./
 RUN deno cache --lock=deno.lock src/mod.ts scripts/*.ts tests/*.ts && \
     addgroup -g 65532 -S pomegranate && \

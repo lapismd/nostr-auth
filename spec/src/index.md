@@ -16,5 +16,10 @@ This specification governs the reproducible Pomegranate deployment and its typed
   backup guidance.
 - **NA-TEST-001:** Automated acceptance proves onboarding, 2-of-3 signing, one-operator
   availability, two-operator failure, restart persistence, and protocol-level recovery.
+- **NA-TEST-002:** Pull requests and main-branch changes run the complete repository checks and live
+  2-of-3 Compose acceptance before they are accepted or published.
+- **NA-OPS-002:** Trusted main, version-tag, and manual builds publish one public `linux/amd64` and
+  `linux/arm64` image to GHCR with an SBOM, build provenance, immutable workflow dependencies, and
+  least-privilege credentials.
 
 See `architecture.md`, `protocol.md`, `operations.md`, and `verification.md`.

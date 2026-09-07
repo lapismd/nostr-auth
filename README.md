@@ -7,17 +7,19 @@ reimplement its FROST/NIP-46 protocol.
 
 ## Pinned supply chain
 
-| Component                | Pin                                                                                                  |
-| ------------------------ | ---------------------------------------------------------------------------------------------------- |
-| Pomegranate source       | `ca0e7a9d697a7db0fc918f9b9335bc5b58d2ac3f`                                                           |
-| Promenade Go module      | `v0.4.4-0.20260511003220-ce69ab3c4a4d` (`ce69ab3c4a4d9a6079d0986a1a2fd932eb239d26`)                  |
-| Promenade browser dealer | `jsr:@fiatjaf/promenade-trusted-dealer@0.4.3`                                                        |
-| Nostr tools              | `jsr:@nostr/tools@2.25.1`                                                                            |
-| Go                       | `1.26.6`                                                                                             |
-| Builder                  | `golang:1.26.6-alpine3.23@sha256:e57c41c1d5864341031181b0db34b9a537bb5773eb6428e4e5bdaea0f9135406`   |
-| Runtime                  | `alpine:3.23.5@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40`              |
-| Test runtime             | `denoland/deno:alpine-2.9.6@sha256:aa665f8777136863b5b8a0445a5cdfccff8103b5f40c9a877de5276b04facb1e` |
-| Docker CLI in test image | `29.5.3-r0` with Compose `5.1.4-r0`                                                                  |
+| Component                 | Pin                                                                                                  |
+| ------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Pomegranate source        | `ca0e7a9d697a7db0fc918f9b9335bc5b58d2ac3f`                                                           |
+| Promenade Go module       | `v0.4.4-0.20260511003220-ce69ab3c4a4d` (`ce69ab3c4a4d9a6079d0986a1a2fd932eb239d26`)                  |
+| Promenade browser dealer  | `jsr:@fiatjaf/promenade-trusted-dealer@0.4.3`                                                        |
+| Nostr tools               | `jsr:@nostr/tools@2.25.1`                                                                            |
+| Go                        | `1.26.6`                                                                                             |
+| Go crypto/network modules | `golang.org/x/crypto@0.56.0`; `golang.org/x/net@0.58.0`                                              |
+| Builder                   | `golang:1.26.6-alpine3.23@sha256:e57c41c1d5864341031181b0db34b9a537bb5773eb6428e4e5bdaea0f9135406`   |
+| Runtime                   | `alpine:3.23.5@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40`              |
+| Runtime OpenSSL           | `3.5.8-r0`                                                                                           |
+| Test runtime              | `denoland/deno:alpine-2.9.6@sha256:aa665f8777136863b5b8a0445a5cdfccff8103b5f40c9a877de5276b04facb1e` |
+| Docker CLI in test image  | `29.5.3-r1` with Compose `5.1.4-r1`                                                                  |
 
 `vendor/pomegranate` is an auditable source fork based on the pinned upstream commit. The
 accompanying lock records the base and named local patches, while the complete SHA-256 manifest
@@ -30,6 +32,27 @@ The pinned source already includes Google, GitHub, Microsoft, and Apple flows. T
 continues to enable and test Google only. See `vendor/README.md` for the governed patch process when
 adding a provider not present upstream; provider behavior and public client support are implemented
 as a separate, provider-specific slice.
+
+## Continuous integration and public image
+
+GitHub Actions runs `deno task check:all` in the pinned test image and then executes the live 2-of-3
+Compose smoke test for pull requests and changes to `main`. Trusted `main` pushes, `v*.*.*` tags,
+and manual runs repeat those gates before publishing:
+
+```text
+ghcr.io/<repository-owner>/nostr-auth-pomegranate
+```
+
+Every publication includes `linux/amd64` and `linux/arm64` manifests, an SBOM, BuildKit provenance,
+and GitHub build provenance. A current Trivy database rejects fixable high or critical runtime
+vulnerabilities before publication. Version tags produce semantic-version image tags, the default
+branch produces `edge`, and every build has a full source-commit tag. Workflow actions and helper
+images are immutable pins; Dependabot proposes action pin refreshes.
+
+GitHub does not copy repository visibility to a container package. After the first workflow push, an
+organization owner must open the `nostr-auth-pomegranate` package settings and change its visibility
+to **Public**. Rerun the workflow afterward. Its final anonymous-read gate intentionally fails while
+the package is private, and public GHCR images can then be pulled without credentials.
 
 ## Local development
 
@@ -74,10 +97,10 @@ po.lapis.md    -> lapis-operator:5041 (optional)
 
 Configure Coolify/Traefik to terminate TLS, redirect HTTP to HTTPS, preserve forwarded host/proto,
 and allow WebSocket upgrades on central. Do not publish the container ports on the host.
-`SERVICE_URL` is authoritative for callbacks and must exactly match the public origin.
-OAuth state cookies derive their `Secure` attribute from that public callback URL, so TLS
-termination at Coolify does not weaken them. Apple's cross-site form callback additionally uses
-`SameSite=None`; the other enabled provider flows use `SameSite=Lax`.
+`SERVICE_URL` is authoritative for callbacks and must exactly match the public origin. OAuth state
+cookies derive their `Secure` attribute from that public callback URL, so TLS termination at Coolify
+does not weaken them. Apple's cross-site form callback additionally uses `SameSite=None`; the other
+enabled provider flows use `SameSite=Lax`.
 
 Google OAuth redirect URIs are:
 
