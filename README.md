@@ -1,9 +1,13 @@
 # nostr-auth
 
+[![CI](https://github.com/lapismd/nostr-auth/actions/workflows/ci.yml/badge.svg)](https://github.com/lapismd/nostr-auth/actions/workflows/ci.yml)
+[![Publish container image](https://github.com/lapismd/nostr-auth/actions/workflows/publish-image.yml/badge.svg)](https://github.com/lapismd/nostr-auth/actions/workflows/publish-image.yml)
+
 `nostr-auth` is LapisMD's reproducible deployment and TypeScript integration boundary for upstream
 Pomegranate. Its source is vendored so LapisMD can maintain OAuth-provider integrations while
-keeping Pomegranate an independently replaceable Go service. This repository does not independently
-reimplement its FROST/NIP-46 protocol.
+keeping Pomegranate an independently replaceable Go service. It publishes a hardened,
+multi-architecture container while leaving Pomegranate's FROST/NIP-46 protocol implementation
+upstream.
 
 ## Pinned supply chain
 
@@ -40,14 +44,23 @@ Compose smoke test for pull requests and changes to `main`. Trusted `main` pushe
 and manual runs repeat those gates before publishing:
 
 ```text
-ghcr.io/<repository-owner>/nostr-auth-pomegranate
+ghcr.io/lapismd/nostr-auth-pomegranate
 ```
 
 Every publication includes `linux/amd64` and `linux/arm64` manifests, an SBOM, BuildKit provenance,
 and GitHub build provenance. A current Trivy database rejects fixable high or critical runtime
 vulnerabilities before publication. Version tags produce semantic-version image tags, the default
-branch produces `edge`, and every build has a full source-commit tag. Workflow actions and helper
-images are immutable pins; Dependabot proposes action pin refreshes.
+branch produces `edge`, and every build has a `sha-<40-character-commit>` tag. A version release
+also produces `<major>.<minor>.<patch>`, `<major>.<minor>`, and `latest`. Workflow actions and
+helper images are immutable pins; Dependabot proposes action pin refreshes.
+
+Pull the current default-branch image with:
+
+```sh
+docker pull ghcr.io/lapismd/nostr-auth-pomegranate:edge
+```
+
+Production deployments should select a version tag and pin the resolved manifest digest.
 
 GitHub does not copy repository visibility to a container package. After the first workflow push, an
 organization owner must open the `nostr-auth-pomegranate` package settings and change its visibility
@@ -205,6 +218,7 @@ removed when a later pinned upstream revision supplies equivalent behavior.
 ## Scope
 
 This repository does not alter Lapis login screens, migrate current users, deploy to Coolify, or
-publish a package. Its governed local Pomegranate patches are deployment hardening changes recorded
-in `vendor/pomegranate.lock.json`. A later Lapis change can expose “Continue with Google” and pass
-the resulting bunker URI to the existing signer abstraction.
+publish an npm package. It builds and publishes the governed Pomegranate container. Its local
+Pomegranate patches are deployment hardening changes recorded in `vendor/pomegranate.lock.json`. A
+later Lapis change can expose “Continue with Google” and pass the resulting bunker URI to the
+existing signer abstraction.
