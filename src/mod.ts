@@ -1,6 +1,6 @@
 export {
-  DEFAULT_LAPIS_PROFILE,
-  DEFAULT_LAPIS_PROFILE_FILTER,
+  DEFAULT_PROFILE,
+  DEFAULT_PROFILE_FILTER,
   normalizeServiceUrl,
   toWebSocketUrl,
   validatePomegranateConfig,

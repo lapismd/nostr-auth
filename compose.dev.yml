@@ -1,5 +1,5 @@
 x-operator: &operator
-  image: lapismd/nostr-auth-pomegranate:${POMEGRANATE_IMAGE_TAG:-ca0e7a9d697a}
+  image: nostr-auth/pomegranate:${POMEGRANATE_IMAGE_TAG:-ca0e7a9d697a}
   environment: &operator-environment
     POMEGRANATE_ROLE: operator
     POMEGRANATE_LISTEN_PORT: "5041"
@@ -8,6 +8,8 @@ x-operator: &operator
     TRUSTED_CENTRAL_URLS: http://central:5033
     GOOGLE_CLIENT_ID: deterministic-test-client
     GOOGLE_CLIENT_SECRET: deterministic-test-secret
+    GITHUB_CLIENT_ID: deterministic-test-client
+    GITHUB_CLIENT_SECRET: deterministic-test-secret
   expose:
     - "5041"
   networks:
@@ -46,7 +48,7 @@ x-operator: &operator
 
 services:
   secret-init:
-    image: lapismd/nostr-auth-test:${POMEGRANATE_TEST_IMAGE_TAG:-deno-2.9.6}
+    image: nostr-auth/test:${POMEGRANATE_TEST_IMAGE_TAG:-deno-2.9.6}
     build:
       context: .
       dockerfile: docker/Dockerfile.test
@@ -57,7 +59,7 @@ services:
       - scripts/generate-secrets.ts
       - --central-key=/run/central-secrets/central-key
       - --test-token=/run/test-auth/token
-      - --email=smoke-test@lapis.invalid
+      - --email=smoke-test@example.invalid
     volumes:
       - central-secrets:/run/central-secrets
       - test-auth:/run/test-auth
@@ -78,6 +80,8 @@ services:
       SECRET_KEY_FILE: /run/central-secrets/central-key
       GOOGLE_CLIENT_ID: deterministic-test-client
       GOOGLE_CLIENT_SECRET: deterministic-test-secret
+      GITHUB_CLIENT_ID: deterministic-test-client
+      GITHUB_CLIENT_SECRET: deterministic-test-secret
     ports:
       - 127.0.0.1:5033:5033
     volumes:
@@ -117,7 +121,7 @@ services:
       - operator-3-data:/var/lib/pomegranate
 
   test-runner:
-    image: lapismd/nostr-auth-test:${POMEGRANATE_TEST_IMAGE_TAG:-deno-2.9.6}
+    image: nostr-auth/test:${POMEGRANATE_TEST_IMAGE_TAG:-deno-2.9.6}
     build:
       context: .
       dockerfile: docker/Dockerfile.test
@@ -125,7 +129,7 @@ services:
       - test
     # Local-only: access to the Docker socket is already host-equivalent.
     group_add:
-      - "0"
+      - "${DOCKER_SOCKET_GID:-0}"
     command: ["task", "smoke"]
     environment:
       POMEGRANATE_CENTRAL_URL: http://central:5033

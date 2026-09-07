@@ -24,6 +24,7 @@ function session(): PomegranateSession {
   return {
     token: "opaque",
     email: "user@example.com",
+    oauthProvider: "google",
     centralUrl: "https://auth.example",
     createdAt: new Date(Date.now() - 1_000),
     expiresAt: new Date(Date.now() + 60_000),

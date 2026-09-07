@@ -1,6 +1,7 @@
 import type { Filter, NostrEvent } from "@nostr/tools";
 
 export type PomegranateProfileFilter = Filter;
+export type PomegranateOAuthProvider = "google" | "github";
 
 export interface PomegranateProfileConfig {
   name: string;
@@ -24,6 +25,7 @@ export interface ValidatedPomegranateConfig {
 export interface PomegranateSession {
   token: string;
   email: string;
+  oauthProvider: PomegranateOAuthProvider;
   centralUrl: string;
   createdAt: Date;
   expiresAt: Date;

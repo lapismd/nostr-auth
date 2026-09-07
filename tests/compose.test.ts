@@ -10,7 +10,7 @@ Deno.test("development Compose renders a hardened, isolated 2-of-3 topology", as
     "compose.dev.yml",
     "--profile",
     "test",
-  ]);
+  ], { DOCKER_SOCKET_GID: "123" });
   const services = config.services as Record<string, any>;
   assertEquals(Object.keys(services).sort(), [
     "central",
@@ -27,7 +27,9 @@ Deno.test("development Compose renders a hardened, isolated 2-of-3 topology", as
     assertEquals(service.environment.POMEGRANATE_ROLE, "operator");
     assertEquals(service.environment.SERVICE_URL, `http://${name}:5041`);
     assertEquals(service.environment.TRUSTED_CENTRAL_URLS, "http://central:5033");
-    assertEquals(service.image, "lapismd/nostr-auth-pomegranate:ca0e7a9d697a");
+    assertEquals(service.environment.GITHUB_CLIENT_ID, "deterministic-test-client");
+    assertEquals(service.environment.GITHUB_CLIENT_SECRET, "deterministic-test-secret");
+    assertEquals(service.image, "nostr-auth/pomegranate:ca0e7a9d697a");
     assert(service.read_only);
     assertEquals(service.cap_drop, ["ALL"]);
     assert(service.healthcheck);
@@ -42,6 +44,8 @@ Deno.test("development Compose renders a hardened, isolated 2-of-3 topology", as
 
   assertEquals(services.central.environment.POMEGRANATE_ROLE, "central");
   assertEquals(services.central.environment.POMEGRANATE_INTERNAL_PORT, "15033");
+  assertEquals(services.central.environment.GITHUB_CLIENT_ID, "deterministic-test-client");
+  assertEquals(services.central.environment.GITHUB_CLIENT_SECRET, "deterministic-test-secret");
   assertEquals(services.central.build.args.POMEGRANATE_REF, PINNED_REF);
   assert(services.central.volumes.some((volume: any) => volume.source === "central-data"));
   assert(
@@ -57,36 +61,48 @@ Deno.test("development Compose renders a hardened, isolated 2-of-3 topology", as
   assertFalse(
     services["test-runner"].volumes.some((volume: any) => volume.source === "central-secrets"),
   );
+  assertEquals(services["test-runner"].group_add, ["123"]);
 });
 
-Deno.test("production Compose exposes only central and optional Lapis operator to the proxy", async () => {
+Deno.test("production Compose exposes only central and the optional operator to the proxy", async () => {
   const config = await renderCompose([
     "-f",
     "compose.yml",
     "-f",
     "compose.prod.yml",
     "--profile",
-    "lapis-operator",
+    "operator",
   ], {
     CENTRAL_GOOGLE_CLIENT_ID: "placeholder",
     CENTRAL_GOOGLE_CLIENT_SECRET: "placeholder",
+    CENTRAL_GITHUB_CLIENT_ID: "central-github-id",
+    CENTRAL_GITHUB_CLIENT_SECRET: "central-github-secret",
     CENTRAL_SECRET_KEY: "1".repeat(64),
     OPERATOR_GOOGLE_CLIENT_ID: "placeholder",
     OPERATOR_GOOGLE_CLIENT_SECRET: "placeholder",
+    OPERATOR_GITHUB_CLIENT_ID: "operator-github-id",
+    OPERATOR_GITHUB_CLIENT_SECRET: "operator-github-secret",
   });
   const services = config.services as Record<string, any>;
-  assertEquals(Object.keys(services).sort(), ["central", "lapis-operator"]);
-  assertEquals(services.central.environment.SERVICE_URL, "https://auth.lapis.md");
-  assertEquals(services["lapis-operator"].environment.SERVICE_URL, "https://po.lapis.md");
+  assertEquals(Object.keys(services).sort(), ["central", "operator"]);
+  assertEquals(services.central.environment.SERVICE_URL, "https://auth.example.com");
+  assertEquals(services.central.environment.GITHUB_CLIENT_ID, "central-github-id");
+  assertEquals(services.central.environment.GITHUB_CLIENT_SECRET, "central-github-secret");
+  assertEquals(services.operator.environment.SERVICE_URL, "https://operator.example.com");
+  assertEquals(services.operator.environment.GITHUB_CLIENT_ID, "operator-github-id");
   assertEquals(
-    services["lapis-operator"].environment.TRUSTED_CENTRAL_URLS,
-    "https://auth.lapis.md",
+    services.operator.environment.GITHUB_CLIENT_SECRET,
+    "operator-github-secret",
+  );
+  assertEquals(
+    services.operator.environment.TRUSTED_CENTRAL_URLS,
+    "https://auth.example.com",
   );
   assertEquals(services.central.expose, ["5033"]);
-  assertEquals(services["lapis-operator"].expose, ["5041"]);
+  assertEquals(services.operator.expose, ["5041"]);
   assertFalse("ports" in services.central);
-  assertFalse("ports" in services["lapis-operator"]);
-  assertEquals(services["lapis-operator"].profiles, ["lapis-operator"]);
+  assertFalse("ports" in services.operator);
+  assertEquals(services.operator.profiles, ["operator"]);
 
   const rendered = JSON.stringify(config);
   assertFalse(rendered.includes(":latest"));
