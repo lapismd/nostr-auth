@@ -23,7 +23,9 @@ container's loopback HTTP connection behind the TLS terminator.
 
 The Go toolchain and security-sensitive `golang.org/x` modules are pinned at patched versions in the
 vendored module and build image. Dependency refreshes remain explicit lock-ledger entries and must
-pass a current vulnerability scan in the pinned builder.
+pass a current vulnerability scan in the pinned builder. The current refresh uses Go 1.26.10 with
+x/net 0.62.0, x/crypto 0.58.0, x/sys 0.49.0 and klauspost/compress 1.18.7; the upstream module
+minimum remains Go 1.26.6.
 
 Two documented wrappers compensate for properties of the pinned revision: central bind forwarding
 and pre-stdout sensitive-response redaction. Neither changes the HTTP, NIP-46, FROST, persistence,

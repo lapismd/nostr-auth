@@ -24,9 +24,9 @@ documented in [`docs/deployment-coolify.md`](docs/deployment-coolify.md).
 | Promenade Go module       | `v0.4.4-0.20260511003220-ce69ab3c4a4d` (`ce69ab3c4a4d9a6079d0986a1a2fd932eb239d26`)                  |
 | Promenade browser dealer  | `jsr:@fiatjaf/promenade-trusted-dealer@0.4.3`                                                        |
 | Nostr tools               | `jsr:@nostr/tools@2.25.1`                                                                            |
-| Go                        | `1.26.6`                                                                                             |
-| Go crypto/network modules | `golang.org/x/crypto@0.56.0`; `golang.org/x/net@0.58.0`                                              |
-| Builder                   | `golang:1.26.6-alpine3.23@sha256:e57c41c1d5864341031181b0db34b9a537bb5773eb6428e4e5bdaea0f9135406`   |
+| Go                        | `1.26.10` (module minimum `1.26.6`)                                                                  |
+| Go crypto/network modules | `golang.org/x/crypto@0.58.0`; `golang.org/x/net@0.62.0`                                              |
+| Builder                   | `golang:1.26.10-alpine3.23@sha256:78e7f1e419545bc4b8b5ee8a40a99ddb5df1216d38681dbab2eeb1fdb2427f43`  |
 | Runtime                   | `alpine:3.23.5@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40`              |
 | Runtime OpenSSL           | `3.5.8-r0`                                                                                           |
 | Test runtime              | `denoland/deno:alpine-2.9.6@sha256:aa665f8777136863b5b8a0445a5cdfccff8103b5f40c9a877de5276b04facb1e` |
