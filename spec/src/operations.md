@@ -38,3 +38,21 @@ immutably. The final job step drops registry credentials and verifies the result
 resolved anonymously. Because GitHub keeps package visibility separate from repository visibility,
 an administrator must make the package public after its first push; the anonymous-read gate fails
 until that is done.
+
+Repository and Compose acceptance use the digest-pinned Deno 2.9.6 test image with Alpine Docker CLI
+`29.9.3-r1` and Compose `5.6.1-r0`. These exact package versions must install successfully before
+repository or live smoke qualification. A pin refresh retains the non-root test user and existing
+hardened runtime.
+
+Both build and runtime stages pin CA certificates `20261020-r0`; runtime OpenSSL libraries pin
+`3.5.9-r0`, advancing the existing security floor without changing the digest-pinned base images or
+vendored Pomegranate source.
+
+The digest-pinned Go `1.26.10` build toolchain compiles the unchanged vendor manifest and Go module.
+Runtime vulnerability qualification must reject every fixable HIGH or CRITICAL finding, including Go
+standard-library findings.
+
+Runtime musl/musl-utils `1.2.5-r24` and zlib `1.4-r0` retain the current Alpine security fixes. The
+recorded vendor dependency patch advances x/net to `0.62.0`, x/crypto to `0.58.0`, x/sys to `0.49.0`
+and klauspost/compress to `1.18.7`; vendor checksums and dependency assertions must match that
+graph.
