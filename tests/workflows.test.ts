@@ -70,8 +70,8 @@ Deno.test("trusted publication builds an attested multi-architecture GHCR image"
     dockerfile,
     "# syntax=docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e",
   );
-  assertStringIncludes(dockerfile, "libcrypto3=3.5.8-r0");
-  assertStringIncludes(dockerfile, "libssl3=3.5.8-r0");
+  assertStringIncludes(dockerfile, "libcrypto3=3.5.9-r0");
+  assertStringIncludes(dockerfile, "libssl3=3.5.9-r0");
 });
 
 function assertRuntimeVulnerabilityGate(workflow: string): void {
